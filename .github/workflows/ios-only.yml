@@ -1,0 +1,69 @@
+name: iOS Build (macos-15)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+
+  build-ios:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix api install
+          npm run generate:mobile-api
+
+      - name: Prebuild iOS project
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios
+        run: pod install
+
+      # 关闭代码签名构建 archive，产出未签名 IPA，供用户自行签名安装
+      - name: Build unsigned archive
+        run: |
+          xcodebuild archive \
+            -workspace ios/MoeKoe.xcworkspace \
+            -scheme MoeKoe \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/MoeKoe.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM=""
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p dist Payload
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="dev-${GITHUB_SHA::7}"
+          fi
+          cp -R "build/MoeKoe.xcarchive/Products/Applications/MoeKoe.app" Payload/
+          zip -qry "dist/MoeKoeMusic-Mobile-${VERSION}-ios-unsigned.ipa" Payload
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: dist/*
+
