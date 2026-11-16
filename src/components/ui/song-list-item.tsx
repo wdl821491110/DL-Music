@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { memo } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
 
@@ -96,7 +96,7 @@ export const SongListItem = memo(function SongListItem({
       </YStack>
 
       {active ? (
-        <Ionicons name="pulse" size={18} color={palette.accent} />
+        <SFIcon symbol="waveform" fallback="pulse" size={18} color={palette.accent} />
       ) : track.durationMs ? (
         <Text color={palette.textTertiary} fontSize={12} fontVariant={['tabular-nums']}>
           {formatClock(track.durationMs)}
@@ -116,7 +116,7 @@ export const SongListItem = memo(function SongListItem({
             event.stopPropagation();
             onMore();
           }}>
-          <Ionicons name="ellipsis-vertical" size={16} color={palette.textTertiary} />
+          <SFIcon symbol="ellipsis" fallback="ellipsis-vertical" size={16} color={palette.textTertiary} />
         </XStack>
       ) : null}
     </XStack>

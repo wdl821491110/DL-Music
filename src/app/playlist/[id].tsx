@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { startTransition, useEffect, useRef, useState } from 'react';
@@ -188,7 +188,7 @@ export default function PlaylistScreen() {
               transition="quickest"
               pressStyle={{ opacity: 0.6, scale: 0.94 }}
               onPress={() => router.back()}>
-              <Ionicons name="chevron-back" size={20} color={palette.text} />
+              <SFIcon symbol="chevron.left" fallback="chevron-back" size={20} color={palette.text} />
             </XStack>
 
             <XStack gap={16} alignItems="center">
@@ -220,7 +220,7 @@ export default function PlaylistScreen() {
                 transition="quickest"
                 pressStyle={{ opacity: 0.85, scale: 0.97 }}
                 onPress={() => playFrom(0)}>
-                <Ionicons name="play" size={16} color={palette.onAccent} />
+                <SFIcon symbol="play.fill" fallback="play" size={16} color={palette.onAccent} />
                 <Text color={palette.onAccent} fontSize={14.5} fontWeight="700">
                   播放全部
                 </Text>
@@ -235,7 +235,7 @@ export default function PlaylistScreen() {
             </YStack>
           ) : state.error ? (
             <YStack alignItems="center" paddingVertical={60} gap={12} paddingHorizontal={28}>
-              <Ionicons name="cloud-offline-outline" size={36} color={palette.textTertiary} />
+              <SFIcon symbol="icloud.slash" fallback="cloud-offline-outline" size={36} color={palette.textTertiary} />
               <Text color={palette.textTertiary} fontSize={13} textAlign="center">
                 {state.error}
               </Text>
@@ -251,7 +251,7 @@ export default function PlaylistScreen() {
             </YStack>
           ) : (
             <YStack alignItems="center" paddingVertical={60} gap={8}>
-              <Ionicons name="musical-note" size={34} color={palette.textTertiary} />
+              <SFIcon symbol="music.note" fallback="musical-note" size={34} color={palette.textTertiary} />
               <Text color={palette.textTertiary} fontSize={13}>
                 这个歌单还没有歌曲
               </Text>

@@ -1,4 +1,4 @@
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -421,7 +421,7 @@ export default function PlayerScreen() {
         gap={16}
         backgroundColor={palette.background}
         paddingTop={insets.top}>
-        <Ionicons name="musical-notes-outline" size={44} color={palette.textTertiary} />
+        <SFIcon symbol="music.note.list" fallback="musical-notes-outline" size={44} color={palette.textTertiary} />
         <Text color={palette.textTertiary} fontSize={14}>
           还没有正在播放的歌曲
         </Text>
@@ -451,7 +451,7 @@ export default function PlayerScreen() {
       transition="quickest"
       pressStyle={{ opacity: 0.6, scale: 0.92 }}
       onPress={() => router.dismiss()}>
-      <Ionicons name="chevron-down" size={24} color={palette.textSecondary} />
+      <SFIcon symbol="chevron.down" fallback="chevron-down" size={24} color={palette.textSecondary} />
     </XStack>
   );
 
@@ -465,7 +465,7 @@ export default function PlayerScreen() {
       transition="quickest"
       pressStyle={{ opacity: 0.6, scale: 0.92 }}
       onPress={() => setLyricSettingsOpen(true)}>
-      <Ionicons name="options-outline" size={21} color={palette.textSecondary} />
+      <SFIcon symbol="sliders.horizontal" fallback="options-outline" size={21} color={palette.textSecondary} />
     </XStack>
   );
 
@@ -520,7 +520,7 @@ export default function PlayerScreen() {
           paddingVertical={7}
           borderRadius={999}
           backgroundColor={palette.dangerSoft}>
-          <Ionicons name="alert-circle" size={13} color={palette.danger} />
+          <SFIcon symbol="exclamationmark.circle" fallback="alert-circle" size={13} color={palette.danger} />
           <Text color={palette.danger} fontSize={12}>
             {error}
           </Text>
@@ -550,8 +550,9 @@ export default function PlayerScreen() {
           transition="quickest"
           pressStyle={{ opacity: 0.55, scale: 0.88 }}
           onPress={handleToggleLike}>
-          <Ionicons
-            name={liked ? 'heart' : 'heart-outline'}
+          <SFIcon
+            symbol={liked ? 'heart.fill' : 'heart'}
+            fallback={liked ? 'heart' : 'heart-outline'}
             size={24}
             color={liked ? palette.accent : palette.textSecondary}
           />
@@ -564,7 +565,7 @@ export default function PlayerScreen() {
           transition="quickest"
           pressStyle={{ opacity: 0.55, scale: 0.88 }}
           onPress={() => setActionsOpen(true)}>
-          <MaterialCommunityIcons name="playlist-plus" size={24} color={palette.textSecondary} />
+          <SFIcon symbol="playlist.plus" fallback="playlist-plus" size={24} color={palette.textSecondary} />
         </XStack>
         <XStack
           width={40}
@@ -603,7 +604,7 @@ export default function PlayerScreen() {
               void shareTrack(track);
             }
           }}>
-          <Ionicons name="share-social-outline" size={22} color={palette.textSecondary} />
+          <SFIcon symbol="square.and.arrow.up" fallback="share-social-outline" size={22} color={palette.textSecondary} />
         </XStack>
       </XStack>
 
@@ -618,7 +619,12 @@ export default function PlayerScreen() {
           transition="quickest"
           pressStyle={{ opacity: 0.55, scale: 0.9 }}
           onPress={() => playerActions.cycleMode()}>
-          <MaterialCommunityIcons name={MODE_ICON[mode]} size={22} color={palette.textSecondary} />
+          <SFIcon
+          symbol={mode === 'shuffle' ? 'shuffle' : mode === 'single' ? 'repeat.1' : 'repeat'}
+          fallback={MODE_ICON[mode]}
+          size={22}
+          color={palette.textSecondary}
+        />
         </XStack>
 
         <XStack
@@ -629,7 +635,7 @@ export default function PlayerScreen() {
           transition="quickest"
           pressStyle={{ opacity: 0.55, scale: 0.88 }}
           onPress={() => playerActions.previous()}>
-          <Ionicons name="play-skip-back" size={32} color={palette.text} />
+          <SFIcon symbol="backward.end.fill" fallback="play-skip-back" size={32} color={palette.text} />
         </XStack>
 
         <XStack
@@ -643,8 +649,9 @@ export default function PlayerScreen() {
           {busy ? (
             <Spinner size="large" color={palette.text} />
           ) : (
-            <Ionicons
-              name={playing ? 'pause' : 'play'}
+            <SFIcon
+              symbol={playing ? 'pause.fill' : 'play.fill'}
+              fallback={playing ? 'pause' : 'play'}
               size={40}
               color={palette.text}
               style={playing ? undefined : { marginLeft: 4 }}
@@ -660,7 +667,7 @@ export default function PlayerScreen() {
           transition="quickest"
           pressStyle={{ opacity: 0.55, scale: 0.88 }}
           onPress={() => playerActions.next()}>
-          <Ionicons name="play-skip-forward" size={32} color={palette.text} />
+          <SFIcon symbol="forward.end.fill" fallback="play-skip-forward" size={32} color={palette.text} />
         </XStack>
 
         <XStack
@@ -671,7 +678,7 @@ export default function PlayerScreen() {
           transition="quickest"
           pressStyle={{ opacity: 0.55, scale: 0.9 }}
           onPress={() => setQueueOpen(true)}>
-          <MaterialCommunityIcons name="playlist-music" size={22} color={palette.textSecondary} />
+          <SFIcon symbol="music.note.list" fallback="playlist-music" size={22} color={palette.textSecondary} />
         </XStack>
       </XStack>
     </YStack>

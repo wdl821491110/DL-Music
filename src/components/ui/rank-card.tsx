@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { memo } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
 
@@ -49,7 +49,7 @@ export const RankCard = memo(function RankCard({
           transition="quickest"
           pressStyle={{ opacity: 0.6, scale: 0.92 }}
           onPress={onPlayAll}>
-          <Ionicons name="play" size={16} color={palette.accent} style={{ marginLeft: 2 }} />
+          <SFIcon symbol="play.fill" fallback="play" size={16} color={palette.accent} style={{ marginLeft: 2 }} />
         </XStack>
       </XStack>
 

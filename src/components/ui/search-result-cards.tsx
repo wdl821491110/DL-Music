@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { memo } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
@@ -120,7 +120,7 @@ export const PlaylistCard = memo(function PlaylistCard({
             paddingHorizontal={7}
             paddingVertical={3}
             borderRadius={999}>
-            <Ionicons name="play" size={9} color="#FFFFFF" />
+            <SFIcon symbol="play.fill" fallback="play" size={9} color="#FFFFFF" />
             <Text color="#FFFFFF" fontSize={10.5} fontWeight="600">
               {item.playCountText}
             </Text>
@@ -157,7 +157,7 @@ export const MvCard = memo(function MvCard({ item, width, onPress }: CardProps<S
           <View style={[StyleSheet.absoluteFill, { backgroundColor: palette.cardAlt }]} />
         )}
         <View style={styles.mvPlayBadge}>
-          <Ionicons name="play" size={14} color="#FFFFFF" />
+          <SFIcon symbol="play.fill" fallback="play" size={14} color="#FFFFFF" />
         </View>
         {item.durationMs > 0 ? (
           <View style={styles.mvDuration}>

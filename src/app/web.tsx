@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Linking, StyleSheet } from 'react-native';
@@ -36,7 +36,7 @@ export default function WebScreen() {
           transition="quickest"
           pressStyle={{ opacity: 0.7, scale: 0.96 }}
           onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={20} color={palette.text} />
+          <SFIcon symbol="chevron.left" fallback="chevron-back" size={20} color={palette.text} />
         </XStack>
         <Text
           flex={1}
@@ -59,7 +59,7 @@ export default function WebScreen() {
             transition="quickest"
             pressStyle={{ opacity: 0.65, scale: 0.96 }}
             onPress={() => void Linking.openURL(currentUrl)}>
-            <Ionicons name="open-outline" size={20} color={palette.text} />
+            <SFIcon symbol="arrow.up.right" fallback="open-outline" size={20} color={palette.text} />
           </XStack>
         ) : null}
       </XStack>
@@ -81,7 +81,7 @@ export default function WebScreen() {
         />
       ) : (
         <View flex={1} alignItems="center" justifyContent="center" gap={10}>
-          <Ionicons name="unlink-outline" size={40} color={palette.textTertiary} />
+          <SFIcon symbol="link" fallback="unlink-outline" size={40} color={palette.textTertiary} />
           <Text color={palette.textTertiary} fontSize={13.5}>
             链接无效或已失效
           </Text>

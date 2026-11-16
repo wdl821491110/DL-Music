@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { isGlassEffectAPIAvailable, GlassView } from 'expo-glass-effect';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
@@ -139,8 +139,9 @@ export function MiniPlayer() {
           {busy ? (
             <Spinner size="small" color={palette.accent} />
           ) : (
-            <Ionicons
-              name={playing ? 'pause' : 'play'}
+            <SFIcon
+              symbol={playing ? 'pause.fill' : 'play.fill'}
+              fallback={playing ? 'pause' : 'play'}
               size={18}
               color={palette.accent}
               style={playing ? undefined : { marginLeft: 2 }}
@@ -159,7 +160,7 @@ export function MiniPlayer() {
             event.stopPropagation();
             playerActions.next();
           }}>
-          <Ionicons name="play-skip-forward" size={19} color={palette.textSecondary} />
+          <SFIcon symbol="forward.end.fill" fallback="play-skip-forward" size={19} color={palette.textSecondary} />
         </XStack>
 
         <ProgressHairline />

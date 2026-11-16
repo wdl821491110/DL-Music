@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { useRouter } from 'expo-router';
 import { startTransition, useEffect, useRef, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
@@ -78,7 +78,7 @@ function PaneStatus({
   if (error) {
     return (
       <YStack alignItems="center" paddingVertical={60} gap={12} paddingHorizontal={28}>
-        <Ionicons name="cloud-offline-outline" size={36} color={palette.textTertiary} />
+        <SFIcon symbol="icloud.slash" fallback="cloud-offline-outline" size={36} color={palette.textTertiary} />
         <Text color={palette.textTertiary} fontSize={13} textAlign="center">
           {error}
         </Text>
@@ -97,7 +97,7 @@ function PaneStatus({
 
   return (
     <YStack alignItems="center" paddingVertical={60} gap={8}>
-      <Ionicons name="musical-note" size={34} color={palette.textTertiary} />
+      <SFIcon symbol="music.note" fallback="musical-note" size={34} color={palette.textTertiary} />
       <Text color={palette.textTertiary} fontSize={13}>
         {emptyText}
       </Text>
@@ -390,7 +390,7 @@ function RankingPane({ bottomInset }: { bottomInset: number }) {
               </Text>
             ) : null}
           </YStack>
-          <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
+          <SFIcon symbol="chevron.right" fallback="chevron-forward" size={16} color={palette.textTertiary} />
         </XStack>
       )}
     />
@@ -612,7 +612,7 @@ function NewSongPane({ bottomInset }: { bottomInset: number }) {
             alignSelf="flex-start"
             pressStyle={{ opacity: 0.6 }}
             onPress={() => playFrom(0)}>
-            <Ionicons name="play-circle" size={17} color={palette.accent} />
+            <SFIcon symbol="play.circle.fill" fallback="play-circle" size={17} color={palette.accent} />
             <Text color={palette.accent} fontSize={13.5} fontWeight="600">
               播放全部
             </Text>

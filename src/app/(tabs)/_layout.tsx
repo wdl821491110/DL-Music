@@ -1,10 +1,11 @@
-import { Ionicons } from '@expo/vector-icons';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Tabs } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Keyboard, Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MiniPlayer } from '@/components/ui/mini-player';
+import { SFIcon } from '@/components/ui/sf-icon';
 import {
   TabBarHeight,
   TabBarSideMargin,
@@ -16,11 +17,14 @@ import { useIsDark, usePalette } from '@/hooks/use-palette';
 
 type TabGlyph = 'home' | 'compass' | 'person';
 
-const TAB_ROUTES: { name: string; title: string; glyph: TabGlyph; label: string }[] = [
-  { name: 'index', title: '首页', glyph: 'home', label: '首页' },
-  { name: 'discover', title: '发现', glyph: 'compass', label: '发现' },
-  { name: 'me', title: '我的', glyph: 'person', label: '我的' },
-];
+// Android 回退用 Ionicons 名；iOS 用原生 SF Symbols
+const TAB_SYMBOLS: Record<TabGlyph, { focused: string; idle: string }> = {
+  home: { focused: 'house.fill', idle: 'house' },
+  compass: { focused: 'safari.fill', idle: 'safari' },
+  person: { focused: 'person.fill', idle: 'person' },
+};
+
+const USES_LIQUID_GLASS = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
 export default function TabsLayout() {
   const palette = usePalette();
@@ -64,6 +68,19 @@ export default function TabsLayout() {
           tabBarInactiveTintColor: palette.textTertiary,
           tabBarPosition: 'bottom',
           tabBarHideOnKeyboard: true,
+          // iOS 26+：系统原生液态玻璃背景；其他平台回退原有材质
+          tabBarBackground: () =>
+            USES_LIQUID_GLASS ? (
+              <GlassView
+                glassEffectStyle="regular"
+                colorScheme="auto"
+                style={[StyleSheet.absoluteFill, { borderRadius: isTablet ? 28 : 0 }]}
+              />
+            ) : (
+              <View
+                style={[StyleSheet.absoluteFill, { backgroundColor: palette.barSurface }]}
+              />
+            ),
           tabBarLabelStyle: {
             fontSize: 10.5,
             fontWeight: '600',
@@ -74,28 +91,39 @@ export default function TabsLayout() {
             width: tabBarWidth,
             bottom: tabBarBottom,
             height: barHeight,
-            borderTopWidth: StyleSheet.hairlineWidth,
-            borderTopColor: palette.border,
-            backgroundColor: palette.barSurface,
+            borderTopWidth: USES_LIQUID_GLASS ? 0 : StyleSheet.hairlineWidth,
+            borderTopColor: USES_LIQUID_GLASS ? undefined : palette.border,
+            backgroundColor: USES_LIQUID_GLASS ? 'transparent' : palette.barSurface,
             borderRadius: isTablet ? 28 : 0,
-            borderColor: isTablet ? palette.border : undefined,
-            borderWidth: isTablet ? StyleSheet.hairlineWidth : 0,
-            shadowColor: palette.dockShadow,
+            borderColor: isTablet && !USES_LIQUID_GLASS ? palette.border : undefined,
+            borderWidth: isTablet && !USES_LIQUID_GLASS ? StyleSheet.hairlineWidth : 0,
+            shadowColor: USES_LIQUID_GLASS ? 'transparent' : palette.dockShadow,
             shadowOffset: { width: 0, height: 10 },
-            shadowOpacity: isDark ? 0.45 : 0.08,
+            shadowOpacity: USES_LIQUID_GLASS ? 0 : isDark ? 0.45 : 0.08,
             shadowRadius: 22,
             elevation: isTablet ? 12 : 10,
           },
         }}>
-        {TAB_ROUTES.map((tab) => (
+        {([
+          { name: 'index', title: '首页', glyph: 'home' },
+          { name: 'discover', title: '发现', glyph: 'compass' },
+          { name: 'me', title: '我的', glyph: 'person' },
+        ] as const).map((tab) => (
           <Tabs.Screen
             key={tab.name}
             name={tab.name}
             options={{
               title: tab.title,
               tabBarIcon: ({ focused, color }) => (
-                <Ionicons
-                  name={focused ? tab.glyph : (`${tab.glyph}-outline` as const)}
+                <SFIcon
+                  symbol={
+                    focused ? TAB_SYMBOLS[tab.glyph].focused : TAB_SYMBOLS[tab.glyph].idle
+                  }
+                  fallback={
+                    focused
+                      ? tab.glyph
+                      : (`${tab.glyph}-outline` as const)
+                  }
                   size={isTablet ? 25 : 23}
                   color={color}
                 />

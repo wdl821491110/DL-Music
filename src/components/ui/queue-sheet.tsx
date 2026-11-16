@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { FlatList, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Sheet, Text, XStack, YStack } from 'tamagui';
@@ -88,7 +88,7 @@ export function QueueSheet({ open, onOpenChange }: QueueSheetProps) {
               playerActions.clearQueue();
               onOpenChange(false);
             }}>
-            <Ionicons name="trash-outline" size={14} color={palette.textSecondary} />
+            <SFIcon symbol="trash" fallback="trash-outline" size={14} color={palette.textSecondary} />
             <Text color={palette.textSecondary} fontSize={12.5} fontWeight="600">
               清空
             </Text>
@@ -131,7 +131,7 @@ export function QueueSheet({ open, onOpenChange }: QueueSheetProps) {
                 onPress={() => void playerActions.jumpTo(itemIndex)}>
                 <XStack width={34} flexShrink={0} justifyContent="center">
                   {active ? (
-                    <Ionicons name="pulse" size={16} color={palette.accent} />
+                    <SFIcon symbol="waveform" fallback="pulse" size={16} color={palette.accent} />
                   ) : (
                     <Text
                       width={34}
@@ -167,7 +167,7 @@ export function QueueSheet({ open, onOpenChange }: QueueSheetProps) {
                     event.stopPropagation();
                     playerActions.removeAt(itemIndex);
                   }}>
-                  <Ionicons name="close" size={15} color={palette.textTertiary} />
+                  <SFIcon symbol="xmark" fallback="close" size={15} color={palette.textTertiary} />
                 </XStack>
               </XStack>
             );

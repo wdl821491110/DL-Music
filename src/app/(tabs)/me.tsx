@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -66,7 +66,7 @@ function PlaylistRow({
           {item.count} 首
         </Text>
       </YStack>
-      <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
+      <SFIcon symbol="chevron.right" fallback="chevron-forward" size={16} color={palette.textTertiary} />
     </XStack>
   );
 }
@@ -79,7 +79,7 @@ function QuickEntryCard({
   subtitle,
   onPress,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: 'heart' | 'cloud';
   gradient: readonly [string, string];
   title: string;
   subtitle: string;
@@ -113,7 +113,7 @@ function QuickEntryCard({
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}
         />
-        <Ionicons name={icon} size={20} color="#FFFFFF" />
+        <SFIcon symbol={icon === 'heart' ? 'heart.fill' : 'icloud.fill'} fallback={icon} size={20} color="#FFFFFF" />
       </XStack>
       <YStack flex={1} gap={2}>
         <Text color={palette.text} fontSize={14.5} fontWeight="700" numberOfLines={1}>
@@ -178,8 +178,9 @@ function CollapsibleSectionHeader({
         alignItems="center"
         justifyContent="center"
         backgroundColor={palette.cardAlt}>
-        <Ionicons
-          name={open ? 'chevron-up' : 'chevron-down'}
+        <SFIcon
+          symbol={open ? 'chevron.up' : 'chevron.down'}
+          fallback={open ? 'chevron-up' : 'chevron-down'}
           size={14}
           color={palette.textSecondary}
         />
@@ -487,7 +488,7 @@ export default function MeScreen() {
                   {signingIn ? (
                     <Spinner size="small" color={palette.vip} />
                   ) : (
-                    <Ionicons name="gift" size={16} color={palette.vip} />
+                    <SFIcon symbol="gift" fallback="gift" size={16} color={palette.vip} />
                   )}
                   <Text color={palette.vip} fontSize={14} fontWeight="700">
                     {signingIn ? '签到中…' : '签到领取 VIP'}
@@ -526,7 +527,7 @@ export default function MeScreen() {
                   paddingVertical={10}
                   borderRadius={14}
                   backgroundColor={palette.dangerSoft}>
-                  <Ionicons name="alert-circle" size={15} color={palette.danger} />
+                  <SFIcon symbol="exclamationmark.circle" fallback="alert-circle" size={15} color={palette.danger} />
                   <Text flex={1} color={palette.danger} fontSize={12.5}>
                     {state.error}
                   </Text>
@@ -692,7 +693,7 @@ export default function MeScreen() {
         transition="quickest"
         pressStyle={{ opacity: 0.7, scale: 0.96 }}
         onPress={() => router.push('/settings')}>
-        <Ionicons name="settings-outline" size={19} color={palette.text} />
+        <SFIcon symbol="gearshape" fallback="settings-outline" size={19} color={palette.text} />
       </XStack>
 
       <CreatePlaylistSheet open={createOpen} onOpenChange={setCreateOpen} />

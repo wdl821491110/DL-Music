@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { startTransition, useEffect, useRef, useState } from 'react';
 import {
@@ -413,7 +413,7 @@ export default function SearchScreen() {
             <Text color={palette.textTertiary} fontSize={12.5}>
               查看更多{total ? `(${total})` : ''}
             </Text>
-            <Ionicons name="chevron-forward" size={13} color={palette.textTertiary} />
+            <SFIcon symbol="chevron.right" fallback="chevron-forward" size={13} color={palette.textTertiary} />
           </XStack>
         ) : null}
       </XStack>
@@ -554,7 +554,7 @@ export default function SearchScreen() {
             transition="quickest"
             pressStyle={{ opacity: 0.6, scale: 0.94 }}
             onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={20} color={palette.text} />
+            <SFIcon symbol="chevron.left" fallback="chevron-back" size={20} color={palette.text} />
           </XStack>
 
           <XStack
@@ -567,7 +567,7 @@ export default function SearchScreen() {
             backgroundColor={palette.card}
             borderWidth={StyleSheet.hairlineWidth}
             borderColor={palette.border}>
-            <Ionicons name="search" size={17} color={palette.textTertiary} />
+            <SFIcon symbol="magnifyingglass" fallback="search" size={17} color={palette.textTertiary} />
             <TextInput
               ref={inputRef}
               value={query}
@@ -590,7 +590,7 @@ export default function SearchScreen() {
                 backgroundColor={palette.cardAlt}
                 pressStyle={{ opacity: 0.6 }}
                 onPress={resetSearch}>
-                <Ionicons name="close" size={13} color={palette.textSecondary} />
+                <SFIcon symbol="xmark" fallback="close" size={13} color={palette.textSecondary} />
               </XStack>
             ) : (
               <XStack
@@ -600,7 +600,7 @@ export default function SearchScreen() {
                 justifyContent="center"
                 pressStyle={{ opacity: 0.6, scale: 0.92 }}
                 onPress={() => router.push('/recognize')}>
-                <Ionicons name="mic-outline" size={19} color={palette.accent} />
+                <SFIcon symbol="mic" fallback="mic-outline" size={19} color={palette.accent} />
               </XStack>
             )}
           </XStack>
@@ -651,11 +651,11 @@ export default function SearchScreen() {
                 transition="quickest"
                 pressStyle={{ opacity: 0.6, backgroundColor: palette.cardAlt }}
                 onPress={() => void commitSearch(suggestion)}>
-                <Ionicons name="search-outline" size={15} color={palette.textTertiary} />
+                <SFIcon symbol="magnifyingglass" fallback="search-outline" size={15} color={palette.textTertiary} />
                 <Text flex={1} color={palette.text} fontSize={14.5} numberOfLines={1}>
                   {suggestion}
                 </Text>
-                <Ionicons name="arrow-up-outline" size={14} color={palette.textTertiary} style={{ transform: [{ rotate: '45deg' }] }} />
+                <SFIcon symbol="arrow.up" fallback="arrow-up-outline" size={14} color={palette.textTertiary} style={{ transform: [{ rotate: '45deg' }] }} />
               </XStack>
             ))}
           </YStack>
@@ -666,7 +666,7 @@ export default function SearchScreen() {
             </YStack>
           ) : results.error ? (
             <YStack flex={1} alignItems="center" justifyContent="center" gap={14} paddingHorizontal={32}>
-              <Ionicons name="cloud-offline-outline" size={38} color={palette.textTertiary} />
+              <SFIcon symbol="icloud.slash" fallback="cloud-offline-outline" size={38} color={palette.textTertiary} />
               <Text color={palette.textTertiary} fontSize={13.5} textAlign="center">
                 {results.error}
               </Text>
@@ -683,14 +683,14 @@ export default function SearchScreen() {
           ) : !hasContent ? (
             isLoggedIn() ? (
               <YStack flex={1} alignItems="center" justifyContent="center" gap={10}>
-                <Ionicons name="search" size={38} color={palette.textTertiary} />
+                <SFIcon symbol="magnifyingglass" fallback="search" size={38} color={palette.textTertiary} />
                 <Text color={palette.textTertiary} fontSize={13.5}>
                   没有找到相关内容
                 </Text>
               </YStack>
             ) : (
               <YStack flex={1} alignItems="center" justifyContent="center" gap={14} paddingHorizontal={32}>
-                <Ionicons name="lock-closed-outline" size={38} color={palette.textTertiary} />
+                <SFIcon symbol="lock.fill" fallback="lock-closed-outline" size={38} color={palette.textTertiary} />
                 <Text color={palette.textTertiary} fontSize={13.5} textAlign="center" lineHeight={20}>
                   酷狗概念版的搜索需要登录后才能获取结果，请先登录
                 </Text>
@@ -703,7 +703,7 @@ export default function SearchScreen() {
                   backgroundColor={palette.accent}
                   pressStyle={{ opacity: 0.75, scale: 0.98 }}
                   onPress={() => router.push('/login')}>
-                  <Ionicons name="log-in-outline" size={16} color="#FFFFFF" />
+                  <SFIcon symbol="arrow.forward.circle" fallback="log-in-outline" size={16} color="#FFFFFF" />
                   <Text color="#FFFFFF" fontSize={14} fontWeight="700">
                     去登录
                   </Text>
@@ -744,7 +744,7 @@ export default function SearchScreen() {
                       gap={5}
                       pressStyle={{ opacity: 0.6 }}
                       onPress={() => playSongsFrom(0)}>
-                      <Ionicons name="play-circle" size={17} color={palette.accent} />
+                      <SFIcon symbol="play.circle.fill" fallback="play-circle" size={17} color={palette.accent} />
                       <Text color={palette.accent} fontSize={13.5} fontWeight="600">
                         播放全部
                       </Text>
@@ -767,7 +767,7 @@ export default function SearchScreen() {
             {hotKeywords.length ? (
               <>
                 <XStack alignItems="center" gap={6}>
-                  <Ionicons name="flame" size={16} color={palette.accent} />
+                  <SFIcon symbol="flame.fill" fallback="flame" size={16} color={palette.accent} />
                   <Text color={palette.text} fontSize={16} fontWeight="700">
                     热搜榜
                   </Text>

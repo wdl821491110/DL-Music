@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Sheet, Switch, Text, XStack, YStack } from 'tamagui';
 
@@ -88,7 +88,7 @@ export function OptionsSheet<T extends string | number>({
                     </Text>
                   ) : null}
                 </YStack>
-                {active ? <Ionicons name="checkmark" size={18} color={palette.accent} /> : null}
+                {active ? <SFIcon symbol="checkmark" fallback="checkmark" size={18} color={palette.accent} /> : null}
               </XStack>
             );
           })}

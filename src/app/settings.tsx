@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -104,7 +105,7 @@ function AccentSwatch({
           alignItems="center"
           justifyContent="center">
           {active ? (
-            <Ionicons name="checkmark" size={18} color={presetPalette.onAccent} />
+            <SFIcon symbol="checkmark" fallback="checkmark" size={18} color={presetPalette.onAccent} />
           ) : null}
         </View>
       </View>
@@ -156,7 +157,16 @@ function SettingsRow({
         </Text>
       ) : null}
       {icon ? (
-        <Ionicons name={icon} size={18} color={palette.textTertiary} />
+        icon === 'logo-github' ? (
+          <Ionicons name={icon} size={18} color={palette.textTertiary} />
+        ) : (
+          <SFIcon
+            symbol={icon === 'globe-outline' ? 'globe' : 'info.circle'}
+            fallback={icon}
+            size={18}
+            color={palette.textTertiary}
+          />
+        )
       ) : null}
     </XStack>
   );
@@ -227,7 +237,7 @@ export default function SettingsScreen() {
               transition="quickest"
               pressStyle={{ opacity: 0.7, scale: 0.96 }}
               onPress={() => router.back()}>
-              <Ionicons name="chevron-back" size={20} color={palette.text} />
+              <SFIcon symbol="chevron.left" fallback="chevron-back" size={20} color={palette.text} />
             </XStack>
             <Text color={palette.text} fontSize={26} fontWeight="800" letterSpacing={0.3}>
               设置

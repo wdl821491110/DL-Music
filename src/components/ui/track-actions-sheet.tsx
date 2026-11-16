@@ -1,4 +1,4 @@
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { useEffect, useState } from 'react';
 import { Modal, StyleSheet, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -346,8 +346,9 @@ export function TrackActionsSheet({
                 <YStack paddingTop={6}>
                   <ActionRow
                     icon={
-                      <Ionicons
-                        name={liked ? 'heart' : 'heart-outline'}
+                      <SFIcon
+                        symbol={liked ? 'heart.fill' : 'heart'}
+                        fallback={liked ? 'heart' : 'heart-outline'}
                         size={21}
                         color={liked ? palette.accent : palette.text}
                       />
@@ -358,7 +359,7 @@ export function TrackActionsSheet({
                     onPress={() => handleToggleLike(track)}
                   />
                   <ActionRow
-                    icon={<MaterialCommunityIcons name="playlist-plus" size={22} color={palette.text} />}
+                    icon={<SFIcon symbol="playlist.plus" fallback="playlist-plus" size={22} color={palette.text} />}
                     label="收藏到歌单"
                     onPress={() => {
                       if (!isLoggedIn()) {
@@ -369,13 +370,13 @@ export function TrackActionsSheet({
                     }}
                   />
                   <ActionRow
-                    icon={<Ionicons name="share-social-outline" size={20} color={palette.text} />}
+                    icon={<SFIcon symbol="square.and.arrow.up" fallback="share-social-outline" size={20} color={palette.text} />}
                     label="分享"
                     onPress={() => handleShare(track)}
                   />
                   {removal ? (
                     <ActionRow
-                      icon={<Ionicons name="remove-circle-outline" size={21} color={palette.danger} />}
+                      icon={<SFIcon symbol="minus.circle" fallback="remove-circle-outline" size={21} color={palette.danger} />}
                       label="从歌单移除"
                       danger
                       busy={busyKey === 'remove'}
@@ -386,7 +387,7 @@ export function TrackActionsSheet({
               ) : (
                 <YStack paddingTop={6}>
                   <ActionRow
-                    icon={<Ionicons name="add-circle-outline" size={21} color={palette.accent} />}
+                    icon={<SFIcon symbol="plus.circle" fallback="add-circle-outline" size={21} color={palette.accent} />}
                     label="新建歌单"
                     active
                     onPress={() => setCreateOpen(true)}
@@ -421,7 +422,7 @@ export function TrackActionsSheet({
                           {busyKey === `add-${playlist.listid}` ? (
                             <Spinner size="small" color={palette.accent} />
                           ) : (
-                            <Ionicons name="add" size={18} color={palette.textTertiary} />
+                            <SFIcon symbol="plus" fallback="add" size={18} color={palette.textTertiary} />
                           )}
                         </XStack>
                       ))

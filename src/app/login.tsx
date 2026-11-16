@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -381,7 +381,7 @@ function TencentCaptchaModal({
                 onClose();
               }
             }}>
-            <Ionicons name="close" size={19} color={palette.textSecondary} />
+            <SFIcon symbol="xmark" fallback="close" size={19} color={palette.textSecondary} />
           </XStack>
           <Text flex={1} color={palette.text} fontSize={15} fontWeight="700" textAlign="center">
             滑块安全验证
@@ -398,7 +398,7 @@ function TencentCaptchaModal({
               alignItems="center"
               justifyContent="center"
               backgroundColor={palette.cardAlt}>
-              <Ionicons name="alert-circle-outline" size={28} color={palette.danger} />
+              <SFIcon symbol="exclamationmark.circle" fallback="alert-circle-outline" size={28} color={palette.danger} />
             </XStack>
             <YStack alignItems="center" gap={6}>
               <Text color={palette.text} fontSize={16} fontWeight="700">
@@ -933,7 +933,7 @@ export default function LoginScreen() {
               transition="quickest"
               pressStyle={{ opacity: 0.6, scale: 0.92 }}
               onPress={() => router.back()}>
-              <Ionicons name="close" size={19} color={palette.textSecondary} />
+              <SFIcon symbol="xmark" fallback="close" size={19} color={palette.textSecondary} />
             </XStack>
           </XStack>
 
@@ -1101,7 +1101,7 @@ export default function LoginScreen() {
                         alignItems="center"
                         justifyContent="center"
                         backgroundColor={palette.cardAlt}>
-                        <Ionicons name="person" size={20} color={palette.textTertiary} />
+                        <SFIcon symbol="person.fill" fallback="person" size={20} color={palette.textTertiary} />
                       </XStack>
                     )}
                     <YStack flex={1} gap={3}>
@@ -1116,7 +1116,7 @@ export default function LoginScreen() {
                     {busy ? (
                       <Spinner size="small" color={palette.accent} />
                     ) : (
-                      <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
+                      <SFIcon symbol="chevron.right" fallback="chevron-forward" size={16} color={palette.textTertiary} />
                     )}
                   </XStack>
                 );
@@ -1187,8 +1187,9 @@ export default function LoginScreen() {
                   transition="quickest"
                   pressStyle={{ opacity: 0.5 }}
                   onPress={() => setShowPassword((value) => !value)}>
-                  <Ionicons
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  <SFIcon
+                    symbol={showPassword ? 'eye.slash' : 'eye'}
+                    fallback={showPassword ? 'eye-off-outline' : 'eye-outline'}
                     size={18}
                     color={palette.textTertiary}
                   />
@@ -1217,7 +1218,7 @@ export default function LoginScreen() {
                   alignItems="center"
                   justifyContent="center"
                   backgroundColor={palette.accentSoft}>
-                  <Ionicons name="shield-checkmark-outline" size={22} color={palette.accent} />
+                  <SFIcon symbol="checkmark.shield.fill" fallback="shield-checkmark-outline" size={22} color={palette.accent} />
                 </XStack>
                 <Text color={palette.text} fontSize={15} fontWeight="700">
                   短信安全验证
@@ -1310,7 +1311,7 @@ export default function LoginScreen() {
                     gap={10}>
                     {qrState.phase === 'scanned' ? (
                       <>
-                        <Ionicons name="checkmark-circle" size={44} color={palette.accent} />
+                        <SFIcon symbol="checkmark.circle.fill" fallback="checkmark-circle" size={44} color={palette.accent} />
                         <YStack alignItems="center" gap={4}>
                           <Text color="#12131F" fontSize={14.5} fontWeight="700">
                             {qrState.nickname ? `${qrState.nickname} 已扫码` : '已扫码'}
@@ -1336,7 +1337,7 @@ export default function LoginScreen() {
                           transition="quickest"
                           pressStyle={{ opacity: 0.8, scale: 0.97 }}
                           onPress={refreshQr}>
-                          <Ionicons name="refresh" size={15} color="#FFFFFF" />
+                          <SFIcon symbol="arrow.clockwise" fallback="refresh" size={15} color="#FFFFFF" />
                           <Text color="#FFFFFF" fontSize={13} fontWeight="700">
                             刷新二维码
                           </Text>

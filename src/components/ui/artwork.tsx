@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View } from 'react-native';
@@ -42,7 +42,7 @@ export function Artwork({ uri, size, radius = 14, circle = false }: ArtworkProps
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[styles.placeholder, frameStyle]}>
-        <Ionicons name="musical-notes" size={iconSize} color={palette.textTertiary} />
+        <SFIcon symbol="music.note.list" fallback="musical-notes" size={iconSize} color={palette.textTertiary} />
       </LinearGradient>
     );
   }

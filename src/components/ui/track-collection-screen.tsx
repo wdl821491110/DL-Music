@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { startTransition, useEffect, useRef, useState } from 'react';
@@ -29,7 +29,7 @@ type TrackCollectionScreenProps = {
   subtitle?: string;
   coverUrl: string | null;
   /** 没有封面图的集合（如云盘）用渐变图标块代替封面。 */
-  coverIcon?: keyof typeof Ionicons.glyphMap;
+  coverIcon?: 'cloud';
   circleCover?: boolean;
   showRank?: boolean;
   emptyText: string;
@@ -187,7 +187,7 @@ export function TrackCollectionScreen({
               transition="quickest"
               pressStyle={{ opacity: 0.6, scale: 0.94 }}
               onPress={() => router.back()}>
-              <Ionicons name="chevron-back" size={20} color={palette.text} />
+              <SFIcon symbol="chevron.left" fallback="chevron-back" size={20} color={palette.text} />
             </XStack>
 
             <XStack gap={16} alignItems="center">
@@ -205,7 +205,7 @@ export function TrackCollectionScreen({
                     end={{ x: 1, y: 1 }}
                     style={StyleSheet.absoluteFill}
                   />
-                  <Ionicons name={coverIcon} size={46} color="#FFFFFF" />
+                  <SFIcon symbol="icloud.fill" fallback={coverIcon} size={46} color="#FFFFFF" />
                 </XStack>
               ) : (
                 <Artwork uri={coverUrl} size={112} radius={20} circle={circleCover} />
@@ -239,7 +239,7 @@ export function TrackCollectionScreen({
                 transition="quickest"
                 pressStyle={{ opacity: 0.85, scale: 0.97 }}
                 onPress={() => playFrom(0)}>
-                <Ionicons name="play" size={16} color={palette.onAccent} />
+                <SFIcon symbol="play.fill" fallback="play" size={16} color={palette.onAccent} />
                 <Text color={palette.onAccent} fontSize={14.5} fontWeight="700">
                   播放全部
                 </Text>
@@ -254,7 +254,7 @@ export function TrackCollectionScreen({
             </YStack>
           ) : state.error ? (
             <YStack alignItems="center" paddingVertical={60} gap={12} paddingHorizontal={28}>
-              <Ionicons name="cloud-offline-outline" size={36} color={palette.textTertiary} />
+              <SFIcon symbol="icloud.slash" fallback="cloud-offline-outline" size={36} color={palette.textTertiary} />
               <Text color={palette.textTertiary} fontSize={13} textAlign="center">
                 {state.error}
               </Text>
@@ -270,7 +270,7 @@ export function TrackCollectionScreen({
             </YStack>
           ) : (
             <YStack alignItems="center" paddingVertical={60} gap={8}>
-              <Ionicons name="musical-note" size={34} color={palette.textTertiary} />
+              <SFIcon symbol="music.note" fallback="musical-note" size={34} color={palette.textTertiary} />
               <Text color={palette.textTertiary} fontSize={13}>
                 {emptyText}
               </Text>

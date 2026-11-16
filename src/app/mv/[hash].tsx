@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useState } from 'react';
@@ -85,7 +85,7 @@ export default function MvScreen() {
           backgroundColor="rgba(0,0,0,0.45)"
           pressStyle={{ opacity: 0.6, scale: 0.94 }}
           onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+          <SFIcon symbol="chevron.left" fallback="chevron-back" size={22} color="#FFFFFF" />
         </XStack>
         <Text flex={1} color="#FFFFFF" fontSize={16} fontWeight="600" numberOfLines={1}>
           {title}
@@ -98,7 +98,7 @@ export default function MvScreen() {
         </YStack>
       ) : error ? (
         <YStack flex={1} alignItems="center" justifyContent="center" gap={14} paddingHorizontal={32}>
-          <Ionicons name="cloud-offline-outline" size={40} color="rgba(255,255,255,0.7)" />
+          <SFIcon symbol="icloud.slash" fallback="cloud-offline-outline" size={40} color="rgba(255,255,255,0.7)" />
           <Text color="rgba(255,255,255,0.7)" fontSize={14} textAlign="center">
             {error}
           </Text>

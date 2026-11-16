@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import { useRouter } from 'expo-router';
 import { startTransition, useEffect, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
@@ -81,7 +81,7 @@ function HomeSongCard({
             event.stopPropagation();
             onMore();
           }}>
-          <Ionicons name="ellipsis-horizontal" size={16} color="#FFFFFF" />
+          <SFIcon symbol="ellipsis" fallback="ellipsis-horizontal" size={16} color="#FFFFFF" />
         </XStack>
         {active ? (
           <XStack
@@ -94,7 +94,7 @@ function HomeSongCard({
             alignItems="center"
             justifyContent="center"
             backgroundColor="rgba(12, 12, 18, 0.54)">
-            <Ionicons name="pulse" size={15} color="#FFFFFF" />
+            <SFIcon symbol="waveform" fallback="pulse" size={15} color="#FFFFFF" />
           </XStack>
         ) : null}
       </View>
@@ -206,7 +206,7 @@ export default function HomeScreen() {
         gap={18}
         paddingHorizontal={32}
         backgroundColor={palette.background}>
-        <Ionicons name="cloud-offline-outline" size={44} color={palette.textTertiary} />
+        <SFIcon symbol="icloud.slash" fallback="cloud-offline-outline" size={44} color={palette.textTertiary} />
         <YStack alignItems="center" gap={6}>
           <Text color={palette.text} fontSize={17} fontWeight="700">
             内容加载失败
@@ -268,7 +268,7 @@ export default function HomeScreen() {
           transition="quickest"
           pressStyle={{ opacity: 0.7, scale: 0.99 }}
           onPress={() => router.push('/search')}>
-          <Ionicons name="search" size={17} color={palette.textTertiary} />
+          <SFIcon symbol="magnifyingglass" fallback="search" size={17} color={palette.textTertiary} />
           <Text flex={1} color={palette.textTertiary} fontSize={14}>
             搜索歌曲、歌手、歌单
           </Text>
@@ -279,7 +279,7 @@ export default function HomeScreen() {
             justifyContent="center"
             pressStyle={{ opacity: 0.6, scale: 0.92 }}
             onPress={() => router.push('/recognize')}>
-            <Ionicons name="mic-outline" size={19} color={palette.accent} />
+            <SFIcon symbol="mic" fallback="mic-outline" size={19} color={palette.accent} />
           </XStack>
         </XStack>
 
@@ -291,7 +291,7 @@ export default function HomeScreen() {
             paddingVertical={10}
             borderRadius={14}
             backgroundColor={palette.dangerSoft}>
-            <Ionicons name="alert-circle" size={15} color={palette.danger} />
+            <SFIcon symbol="exclamationmark.circle" fallback="alert-circle" size={15} color={palette.danger} />
             <Text flex={1} color={palette.danger} fontSize={12.5}>
               部分内容刷新失败，正在展示上次内容
             </Text>

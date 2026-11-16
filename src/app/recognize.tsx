@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { SFIcon } from '@/components/ui/sf-icon';
 import {
   getRecordingPermissionsAsync,
   requestRecordingPermissionsAsync,
@@ -336,7 +336,7 @@ export default function RecognizeScreen() {
             transition="quickest"
             pressStyle={{ opacity: 0.6, scale: 0.94 }}
             onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={20} color={palette.text} />
+            <SFIcon symbol="chevron.left" fallback="chevron-back" size={20} color={palette.text} />
           </XStack>
           <Text color={palette.text} fontSize={19} fontWeight="800">
             听歌识曲
@@ -423,7 +423,7 @@ export default function RecognizeScreen() {
                         transition="quickest"
                         pressStyle={{ opacity: 0.85, scale: 0.97 }}
                         onPress={() => void playerActions.playTrackNow(match.track)}>
-                        <Ionicons name="play" size={14} color={palette.onAccent} />
+                        <SFIcon symbol="play.fill" fallback="play" size={14} color={palette.onAccent} />
                         <Text color={palette.onAccent} fontSize={13.5} fontWeight="700">
                           播放
                         </Text>
@@ -438,7 +438,7 @@ export default function RecognizeScreen() {
                         transition="quickest"
                         pressStyle={{ opacity: 0.7, scale: 0.94 }}
                         onPress={() => setActionTrack(match.track)}>
-                        <Ionicons name="add" size={19} color={palette.text} />
+                        <SFIcon symbol="plus" fallback="add" size={19} color={palette.text} />
                       </XStack>
                       <XStack
                         width={40}
@@ -450,7 +450,7 @@ export default function RecognizeScreen() {
                         transition="quickest"
                         pressStyle={{ opacity: 0.7, scale: 0.94 }}
                         onPress={() => searchMatch(match.track)}>
-                        <Ionicons name="search" size={16} color={palette.text} />
+                        <SFIcon symbol="magnifyingglass" fallback="search" size={16} color={palette.text} />
                       </XStack>
                     </XStack>
                   </YStack>
@@ -543,7 +543,7 @@ export default function RecognizeScreen() {
                   {status === 'recognizing' ? (
                     <Spinner size="large" color="#FFFFFF" />
                   ) : (
-                    <Ionicons name={recording ? 'stop' : 'mic'} size={46} color="#FFFFFF" />
+                    <SFIcon symbol={recording ? 'stop.circle.fill' : 'mic'} fallback={recording ? 'stop' : 'mic'} size={46} color="#FFFFFF" />
                   )}
                 </XStack>
               </Animated.View>
