@@ -9,12 +9,9 @@ permissions:
 jobs:
 
   build-ios:
-    strategy:
-      fail-fast: false
-      matrix:
-        # 仅 Xcode 26 / Swift 6.2 的池能解析 ExpoModulesJSI 的 Swift 包；Xcode 16.4 的 macOS-15 池必失败。
-        runner: [macos-26, macos-26-arm64, macos-latest]
-    runs-on: ${{ matrix.runner }}
+    # 单 runner：多 runner 并行时在拥堵时段会互相抢配额，arm64 尤其难分配，
+    # 导致整个 run 被一个排不上的 job 拖到超时。macos-latest 已验证可成功产出 IPA。
+    runs-on: macos-latest
 
     steps:
       - name: Checkout
@@ -73,6 +70,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa-${{ matrix.runner }}
+          name: ios-ipa-macos-latest
           path: dist/*
 
