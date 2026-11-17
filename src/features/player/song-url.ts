@@ -91,6 +91,7 @@ async function findSearchReplacement(track: PlayerTrack): Promise<SongUrlArgs | 
     const response = await mobileApi.search({ keywords: keyword, page: 1, pagesize: 10, type: 'song' });
     const records = toRecords(toRecord(toRecord(response.body).data).lists);
     const title = normalizeTitle(track.title);
+    const artistUnknown = !track.artist || track.artist === '未知歌手';
     const candidates = records
       .map((item) => ({
         hash: pickText(item.FileHash),
@@ -103,17 +104,32 @@ async function findSearchReplacement(track: PlayerTrack): Promise<SongUrlArgs | 
         (item) =>
           item.hash &&
           normalizeTitle(item.title) === title &&
-          // 同名资源（如同名有声书）可能排在前面，按歌手过滤避免换错音源。
-          (!track.artist || track.artist === '未知歌手' || artistMatches(item.artist, track.artist))
+          // 同名资源（如同名有声书）可能排在前面，按歌手严格匹配避免换错音源。
+          (artistUnknown || artistMatches(item.artist, track.artist))
       );
     if (!candidates.length) {
       return null;
     }
 
-    const matched =
-      (track.albumAudioId
-        ? candidates.find((item) => item.albumAudioId === track.albumAudioId)
-        : undefined) ?? candidates[0];
+    // 先用 albumAudioId 精确对上同一首（同名不同版本时唯一可靠的区分依据）。
+    const exactAlbumMatch = track.albumAudioId
+      ? candidates.find((item) => item.albumAudioId === track.albumAudioId)
+      : undefined;
+    if (exactAlbumMatch) {
+      return {
+        hash: exactAlbumMatch.hash,
+        album_id: exactAlbumMatch.albumId || 0,
+        album_audio_id: exactAlbumMatch.albumAudioId || 0,
+      };
+    }
+
+    // 歌手没解析出来、又没有 albumAudioId 可精确对上：同名候选多个时无法确认是哪首，
+    // 宁可不换（上层按版权受限处理），也不要换成与歌单信息不符的歌。
+    if (artistUnknown && candidates.length > 1) {
+      return null;
+    }
+
+    const matched = candidates[0];
     return { hash: matched.hash, album_id: matched.albumId || 0, album_audio_id: matched.albumAudioId || 0 };
   } catch {
     return null;
