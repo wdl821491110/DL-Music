@@ -109,11 +109,12 @@ let advanceTimer: ReturnType<typeof setTimeout> | null = null;
 // 每次“建立新队列”都会自增；后台补齐歌单剩余曲目时靠它判断队列是否已被替换。
 let queueGeneration = 0;
 
-// expo-audio 单 player 的锁屏/通知栏没有上一首/下一首命令(原生侧明确移除),
-// 只有 播放暂停+进度条+±10 秒;切歌按钮需迁移原生队列(AudioPlaylist),暂不做。
+// 锁屏 / 控制中心只保留标准三键（上一首 / 播放暂停 / 下一首）+ 进度条。
+// 切歌命令由 patches/expo-audio/ios/MediaController.swift 注入原生侧；
+// 快进快退 10 秒不需要，关掉以免和切歌按钮混在一起。
 const LOCK_SCREEN_OPTIONS: AudioLockScreenOptions = {
-  showSeekForward: true,
-  showSeekBackward: true,
+  showSeekForward: false,
+  showSeekBackward: false,
 };
 
 /** 原生侧音源加载/解码失败时给用户的统一文案（详情只进日志，不打扰用户）。 */
