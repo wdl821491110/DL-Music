@@ -12,7 +12,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [macos-15, macos-15-intel, macos-15-arm64, macos-26, macos-26-arm64]
+        # 仅 Xcode 26 / Swift 6.2 的池能解析 ExpoModulesJSI 的 Swift 包；Xcode 16.4 的 macOS-15 池必失败。
+        runner: [macos-26, macos-26-arm64, macos-latest]
     runs-on: ${{ matrix.runner }}
 
     steps:
@@ -32,6 +33,10 @@ jobs:
           npm ci
           npm --prefix api install
           npm run generate:mobile-api
+
+      # expo-audio 原生未注册锁屏「上一首/下一首」命令，npm ci 之后覆盖其 Swift 源码。
+      - name: Apply lock screen track commands patch
+        run: cp patches/expo-audio/ios/MediaController.swift node_modules/expo-audio/ios/MediaController.swift
 
       - name: Prebuild iOS project
         run: npx expo prebuild --platform ios --no-install
