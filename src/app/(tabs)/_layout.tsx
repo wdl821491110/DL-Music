@@ -10,6 +10,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MiniPlayer } from '@/components/ui/mini-player';
+import { useHasTrack } from '@/features/player/store';
 import { usePalette } from '@/hooks/use-palette';
 
 // iOS 26+ 由系统原生 UITabBarController 提供：悬浮液态玻璃胶囊、
@@ -22,6 +23,7 @@ export default function TabsLayout() {
   const palette = usePalette();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const hasTrack = useHasTrack();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   useEffect(() => {
@@ -44,7 +46,7 @@ export default function TabsLayout() {
         tintColor={palette.accent}
         iconColor={palette.textTertiary}
         labelStyle={{ fontSize: 10.5, fontWeight: '600' }}>
-        {HAS_NATIVE_ACCESSORY ? (
+        {HAS_NATIVE_ACCESSORY && hasTrack ? (
           <NativeTabs.BottomAccessory>
             <MiniPlayer />
           </NativeTabs.BottomAccessory>
@@ -76,7 +78,7 @@ export default function TabsLayout() {
       </NativeTabs>
 
       {/* iOS 26 以下 / Android：MiniPlayer 仍以悬浮卡片形式显示在 Tab 栏上方 */}
-      {!HAS_NATIVE_ACCESSORY && !keyboardVisible ? (
+      {!HAS_NATIVE_ACCESSORY && !keyboardVisible && hasTrack ? (
         <View
           pointerEvents="box-none"
           style={[

@@ -10,7 +10,13 @@ export type VipSignInResult = {
 };
 
 function todayKey(): string {
-  return new Date().toISOString().split('T')[0];
+  // 用本地时间拼日期，不能用 toISOString()：后者是 UTC，凌晨 0-8 点会比北京时间
+  // 早一天，导致把“昨天”传给酷狗而报“日期不能小于今天”。
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /** 提取酷狗返回体里的错误码，兼容 { error_code } 与包在 body 里的两种形态。 */

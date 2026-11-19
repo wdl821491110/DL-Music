@@ -61,13 +61,17 @@ export function stripEmTags(value: string): string {
   return value.replace(/<\/?em>/g, '').trim();
 }
 
-/** 判断候选资源的歌手名与曲目歌手是否指向同一人（多歌手按分隔符拆开取交集）。 */
+/**
+ * 判断候选资源的歌手名与曲目歌手是否指向同一人（多歌手按分隔符拆开取交集）。
+ * 用“整段相等”而非子串包含：子串匹配会把“周杰伦”误匹配到“周杰伦翻唱版”“周杰伦精选”，
+ * 导致换源/歌词换到同名但不同版本的歌，播放结果与歌单信息不符。
+ */
 export function artistMatches(candidateArtist: string, trackArtist: string): boolean {
   const normalize = (value: string) => stripEmTags(value).toLowerCase().replace(/\s+/g, '');
   const candidateSegments = candidateArtist.split(/[/,、&;；]|feat\.?/i).map(normalize).filter(Boolean);
   const trackSegments = trackArtist.split(/[/,、&;；]|feat\.?/i).map(normalize).filter(Boolean);
 
   return candidateSegments.some((candidate) =>
-    trackSegments.some((track) => candidate.includes(track) || track.includes(candidate))
+    trackSegments.some((track) => candidate === track)
   );
 }

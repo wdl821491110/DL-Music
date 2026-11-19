@@ -13,7 +13,7 @@ import { sizedImage } from '@/lib/format';
 import { settingsActions, type QualityId } from '@/features/settings/store';
 
 import { loadLyricLines } from './lyrics';
-import { resolveSongSource } from './song-url';
+import { resolveSongSource, type ResolvedSongSource } from './song-url';
 import type { LyricLine, LyricsStatus, PlayMode, PlayerTrack } from './types';
 
 export type PlayerState = {
@@ -217,6 +217,29 @@ function pickNextIndex(step: 1 | -1, auto: boolean): number {
   return (index + step + queue.length) % queue.length;
 }
 
+/**
+ * 取链失败时先对同一首重试一次再判失败。网络抖动/接口限流往往只失败一瞬，
+ * 立即跳下一首会造成“连跳好几首”；重试成功则按正常流程播放。
+ * 每次等待前后都校验 loadSequence：期间用户切歌/手动重播则放弃本次重试，避免旧结果覆盖新歌。
+ */
+async function resolveSongSourceWithRetry(
+  track: PlayerTrack,
+  sequence: number
+): Promise<ResolvedSongSource> {
+  try {
+    return await resolveSongSource(track);
+  } catch (firstError) {
+    if (sequence !== loadSequence) {
+      throw firstError;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    if (sequence !== loadSequence) {
+      throw firstError;
+    }
+    return resolveSongSource(track);
+  }
+}
+
 async function loadTrackAt(index: number, options?: { autoplay?: boolean }) {
   const { queue } = playerStore.getState();
   const track = queue[index];
@@ -244,7 +267,8 @@ async function loadTrackAt(index: number, options?: { autoplay?: boolean }) {
   loadLyricsFor(track, sequence);
 
   try {
-    const source = await resolveSongSource(track);
+    // 取链偶发失败（网络抖动、接口限流）先对同一首重试一次，避免被误判成音源坏掉而连跳。
+    const source = await resolveSongSourceWithRetry(track, sequence);
     if (sequence !== loadSequence) {
       return;
     }
@@ -303,7 +327,8 @@ async function loadTrackAt(index: number, options?: { autoplay?: boolean }) {
     });
 
     const { queue: currentQueue } = playerStore.getState();
-    const maxStreak = Math.min(currentQueue.length, 6);
+    // 已经对同一首重试过，仍失败才跳下一首；且收紧连跳上限，避免一次网络故障跳光大半个歌单。
+    const maxStreak = Math.min(currentQueue.length, 3);
     if (currentQueue.length > 1 && failStreak < maxStreak) {
       advanceTimer = setTimeout(() => {
         advanceTimer = null;
