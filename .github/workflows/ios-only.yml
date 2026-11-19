@@ -1,4 +1,4 @@
-name: iOS Build (macos-15)
+name: iOS Build (multi-runner)
 
 on:
   workflow_dispatch:
@@ -9,9 +9,18 @@ permissions:
 jobs:
 
   build-ios:
-    # macos-latest 在拥堵时段长时间分不到 runner（15 分钟自动取消）。
-    # 改用 macos-15 固定版本池，通常更快分到；同为 Intel/Xcode 环境，构建流程一致。
-    runs-on: macos-15
+    # 拥堵时段单个 runner 常排 15 分钟都分不到机器。多个不同 label 同时排队，
+    # 命中不同 runner 池的概率更高；fail-fast=false 保证任一成功即出包、互不拖累。
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - macos-latest
+          - macos-15
+          - macos-14
+          - macos-13
+          - macos-15-intel
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - name: Checkout
@@ -70,6 +79,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa-macos-latest
+          name: ios-ipa-${{ matrix.runner }}
           path: dist/*
-
