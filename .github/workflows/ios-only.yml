@@ -9,9 +9,9 @@ permissions:
 jobs:
 
   build-ios:
-    # 单 runner：多 runner 并行时在拥堵时段会互相抢配额，arm64 尤其难分配，
-    # 导致整个 run 被一个排不上的 job 拖到超时。macos-latest 已验证可成功产出 IPA。
-    runs-on: macos-latest
+    # macos-latest 在拥堵时段长时间分不到 runner（15 分钟自动取消）。
+    # 改用 macos-15 固定版本池，通常更快分到；同为 Intel/Xcode 环境，构建流程一致。
+    runs-on: macos-15
 
     steps:
       - name: Checkout
