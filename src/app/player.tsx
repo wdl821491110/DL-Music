@@ -1,4 +1,5 @@
 import { SFIcon } from '@/components/ui/sf-icon';
+import { File, Paths } from 'expo-file-system';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -38,9 +39,11 @@ import {
 } from '@/features/settings/store';
 import { useIsTablet } from '@/hooks/use-is-tablet';
 import { useIsDark, usePalette } from '@/hooks/use-palette';
+import { resolveAltDownloadUrl } from '@/lib/alt-source';
 import { extractAmbientColor, mixHex, peekAmbientColor, withAlpha } from '@/lib/ambient-color';
 import { formatClock, sizedImage } from '@/lib/format';
 import { shareTrack } from '@/lib/share';
+import * as Sharing from 'expo-sharing';
 
 const MODE_ICON: Record<PlayMode, 'repeat' | 'repeat-once' | 'shuffle-variant'> = {
   sequence: 'repeat',
@@ -274,6 +277,7 @@ export default function PlayerScreen() {
   const [queueOpen, setQueueOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [likeBusy, setLikeBusy] = useState(false);
+  const [downloadBusy, setDownloadBusy] = useState(false);
   const [qualityOpen, setQualityOpen] = useState(false);
   const [lyricSettingsOpen, setLyricSettingsOpen] = useState(false);
   const quality = useQuality();
@@ -383,6 +387,40 @@ export default function PlayerScreen() {
         showToast(cause instanceof Error ? cause.message : '操作失败');
       })
       .finally(() => setLikeBusy(false));
+  }
+
+  /** 主动下载：点按钮才请求备用音源拿直链，下载到临时目录后交给系统面板选保存位置。 */
+  async function handleDownload() {
+    if (!track || downloadBusy) return;
+    setDownloadBusy(true);
+    let tempFile: InstanceType<typeof File> | null = null;
+    try {
+      showToast('正在查找下载源…');
+      const url = await resolveAltDownloadUrl(track.title, track.artist);
+
+      const safeName = `${track.artist} - ${track.title}`.replace(/[\\/:*?"<>|]/g, '_').slice(0, 120);
+      tempFile = new File(Paths.cache, `${safeName}.mp3`);
+      showToast('正在下载…');
+      await File.downloadFileAsync(url, tempFile);
+
+      if (!(await Sharing.isAvailableAsync())) {
+        showToast('当前系统不支持文件分享');
+        return;
+      }
+      // 系统面板：用户可选「存储到文件」并挑选位置；取消也不算错误。
+      await Sharing.shareAsync(tempFile.uri, {
+        mimeType: 'audio/mpeg',
+        dialogTitle: '保存歌曲',
+      });
+    } catch (cause) {
+      showToast(cause instanceof Error ? cause.message : '下载失败，请稍后再试');
+    } finally {
+      // 分享面板返回后清理临时文件（系统若已复制走不影响副本）。
+      if (tempFile) {
+        try { await tempFile.delete(); } catch { /* 清理失败可忽略 */ }
+      }
+      setDownloadBusy(false);
+    }
   }
 
   // 背景由封面主色驱动。新歌取色完成前沿用上一首的主色（而不是先跳到中性灰），
@@ -605,6 +643,21 @@ export default function PlayerScreen() {
             }
           }}>
           <SFIcon symbol="square.and.arrow.up" fallback="share-social-outline" size={22} color={palette.textSecondary} />
+        </XStack>
+        <XStack
+          width={40}
+          height={40}
+          alignItems="center"
+          justifyContent="center"
+          opacity={downloadBusy ? 0.5 : 1}
+          transition="quickest"
+          pressStyle={{ opacity: 0.55, scale: 0.88 }}
+          onPress={() => { void handleDownload(); }}>
+          {downloadBusy ? (
+            <Spinner size="small" color={palette.textSecondary} />
+          ) : (
+            <SFIcon symbol="square.and.arrow.down" fallback="download-outline" size={22} color={palette.textSecondary} />
+          )}
         </XStack>
       </XStack>
 

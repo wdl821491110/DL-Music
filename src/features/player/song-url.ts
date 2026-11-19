@@ -42,6 +42,8 @@ type SongUrlArgs = {
   album_audio_id: string | number;
   /** 酷狗音质标识：128 / 320 / flac；缺省为 128。 */
   quality?: string;
+  /** true 只要试听片段（IsFreePart:1）；false/undefined 请求完整版（IsFreePart:0）。 */
+  freePart?: boolean;
 };
 
 type SongUrlOutcome = {
@@ -57,7 +59,7 @@ async function requestSongUrl(args: SongUrlArgs): Promise<SongUrlOutcome> {
     album_id: args.album_id,
     album_audio_id: args.album_audio_id,
     quality: args.quality,
-    free_part: 1,
+    free_part: args.freePart ? 1 : 0,
   });
 
   const body = toRecord(response.body);
@@ -71,6 +73,17 @@ async function requestSongUrl(args: SongUrlArgs): Promise<SongUrlOutcome> {
     timeLength: body.timeLength,
     bitrate: body.bitrate ?? body.bitRate,
   };
+}
+
+/**
+ * 会员账号应拿到完整音源：先按完整版（IsFreePart:0）请求；
+ * 拿不到链接时再退回试听片段，避免把原本还能试听的歌变成完全不能播。
+ * 判断只看 URL 是否拿到，status 交给上层按最后结果解释。
+ */
+async function requestSongUrlPreferFull(args: SongUrlArgs): Promise<SongUrlOutcome> {
+  const full = await requestSongUrl({ ...args, freePart: false });
+  if (full.urls.length) return full;
+  return requestSongUrl({ ...args, freePart: true });
 }
 
 function normalizeTitle(value: string): string {
@@ -135,18 +148,18 @@ export async function resolveSongSource(
     album_id: track.albumId ?? 0,
     album_audio_id: track.albumAudioId ?? 0,
   };
-  let outcome = await requestSongUrl({ ...trackArgs, quality });
+  let outcome = await requestSongUrlPreferFull({ ...trackArgs, quality });
   let usedArgs = trackArgs;
 
   if (!outcome.urls.length && quality !== '128') {
     // 高清/无损大概率因会员限制取不到，先退回标准音质再试。
-    outcome = await requestSongUrl(trackArgs);
+    outcome = await requestSongUrlPreferFull(trackArgs);
   }
 
   if (!outcome.urls.length) {
     const replacement = await findSearchReplacement(track);
     if (replacement) {
-      outcome = await requestSongUrl(replacement);
+      outcome = await requestSongUrlPreferFull(replacement);
       usedArgs = replacement;
     }
   }
