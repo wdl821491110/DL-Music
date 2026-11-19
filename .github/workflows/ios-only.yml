@@ -50,9 +50,35 @@ jobs:
       - name: Prebuild iOS project
         run: npx expo prebuild --platform ios --no-install
 
+      # RN 0.86 的 pod install 会从 Maven CDN 下载预编译包，脚本用单次 curl 无重试，
+      # GitHub runner 到 CDN 偶发 Connection reset 导致失败。先带重试预下载到 RN 的
+      # 产物目录，脚本发现文件已存在会跳过下载。
+      - name: Prefetch RN prebuilt tarballs
+        run: |
+          VER=$(node -p "require('./node_modules/react-native/package.json').version")
+          DIR=ios/Pods/ReactNativeCore-artifacts
+          mkdir -p "$DIR"
+          BASE="https://repo1.maven.org/maven2/com/facebook/react/react-native-artifacts/$VER"
+          for CFG in debug release; do
+            F="reactnative-core-$VER-$CFG.tar.gz"
+            if [ -s "$DIR/$F" ]; then echo "already have $F"; continue; fi
+            echo "prefetch $F ..."
+            curl -A "react-native-$VER" -fL --retry 6 --retry-delay 3 --retry-all-errors \
+              "$BASE/react-native-artifacts-$VER-reactnative-core-$CFG.tar.gz" -o "$DIR/$F"
+            ls -lh "$DIR/$F"
+          done
+
       - name: Install CocoaPods dependencies
         working-directory: ios
-        run: pod install
+        run: |
+          for i in 1 2 3; do
+            echo "pod install attempt $i/3"
+            pod install && exit 0
+            echo "pod install failed, retrying..."
+            sleep 5
+          done
+          echo "pod install failed after 3 attempts"
+          exit 1
 
       # 关闭代码签名构建 archive，产出未签名 IPA，供用户自行签名安装
       - name: Build unsigned archive
