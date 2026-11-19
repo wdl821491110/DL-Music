@@ -9,16 +9,27 @@ permissions:
 jobs:
 
   build-ios:
-    # 只保留 macos-latest：它自带 Swift 6.2，满足依赖包（expo apple SPM）要求；
-    # macos-15/14/13 的 Xcode 是 Swift 6.1，编译必失败，还会抢占排队名额。
-    # run 44226047566 已验证 macos-latest 可成功产出 IPA。
-    runs-on: macos-latest
+    # 两个池并发排队，谁先分到机器谁出包，互不拖累。
+    # macos-15/macOS-latest 预装 Xcode 26.x（Swift 6.2），构建前 xcode-select 切过去；
+    # 用默认 Xcode 16.4（Swift 6.1）会因依赖要求 Swift 6.2 而编译失败。
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-latest]
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
           submodules: recursive
+
+      - name: Select Xcode 26.x (Swift 6.2)
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -71,5 +82,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa-macos-latest
+          name: ios-ipa-${{ matrix.runner }}
           path: dist/*
