@@ -1,13 +1,14 @@
 /**
- * 备用音源（flac.music.hi.cn）——仅用于「主动下载」，不参与播放取链。
+ * 备用音源（flac.music.hi.cn）——下载 + 播放取链共用。
  *
  * 该站是聚合站，search 返回上游（网易云/酷我）歌曲 id + time + sign，
  * getUrl 透传这对值换取带时效的 CDN 直链。全部走 fetch，不依赖酷狗签名层。
  *
  * 设计约束：
- * - 静默：只有用户点下载才会触发，不在播放链路里发请求。
+ * - 按需触发：下载按钮、或播放链路酷狗取链全部失败后才请求，不每首都发。
  * - 反爬：同一关键词短时间内重复请求会返回空 list，失败最多重试 1 次（间隔 2s）。
- * - 时间敏感：time/sign 有时效，search 完立刻 getUrl，不缓存。
+ *   会话级失败记忆：同一首失败后一段时间内不再请求，避免反复触发风控。
+ * - 时间敏感：time/sign 有时效，search 完立刻 getUrl，成功直链不做持久化缓存。
  */
 
 import { toRecord, toRecords, pickText, pickStringLike } from '@/lib/api-parse';
@@ -108,12 +109,42 @@ function pickBestQuality(minfo: unknown[]): Quality | null {
   );
 }
 
+/** 会话级失败记忆：同一首歌失败后不再重复请求，规避站点反爬。key = 归一化歌手+歌名。 */
+const failureMemory = new Map<string, number>();
+const FAILURE_TTL_MS = 10 * 60 * 1000;
+
+function getFailureKey(title: string, artist: string): string {
+  return `${normalizeTitle(artist)}|${normalizeTitle(title)}`;
+}
+
+function isRecentlyFailed(key: string): boolean {
+  const at = failureMemory.get(key);
+  if (at == null) return false;
+  if (Date.now() - at < FAILURE_TTL_MS) return true;
+  failureMemory.delete(key);
+  return false;
+}
+
+function rememberFailure(key: string): void {
+  failureMemory.set(key, Date.now());
+}
+
 /**
- * 搜索并拿到可直接下载的 CDN 直链。仅在用户点下载时调用。
+ * 搜索并拿到可直接播放/下载的 CDN 直链（flac > 320 > 128 自动降级）。
  * @param title 歌名
  * @param artist 歌手（用于匹配，避免下错翻唱/同名曲）
+ * @param respectFailureMemory 是否遵守会话失败记忆；下载按钮为 true，播放兜底为 true
  */
-export async function resolveAltDownloadUrl(title: string, artist: string): Promise<string> {
+async function resolveAltUrl(
+  title: string,
+  artist: string,
+  respectFailureMemory = true
+): Promise<string> {
+  const failureKey = getFailureKey(title, artist);
+  if (respectFailureMemory && isRecentlyFailed(failureKey)) {
+    throw new AltSourceError('备用音源近期匹配失败，已跳过请求');
+  }
+
   let lastError = '未找到匹配的歌曲';
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
@@ -158,11 +189,26 @@ export async function resolveAltDownloadUrl(title: string, artist: string): Prom
         continue;
       }
 
+      failureMemory.delete(failureKey);
       return url;
     } catch (error) {
       lastError = error instanceof Error ? error.message : '备用音源请求失败';
     }
   }
 
+  if (respectFailureMemory) rememberFailure(failureKey);
   throw new AltSourceError(lastError);
+}
+
+/** 下载按钮用：拿直链存文件。 */
+export async function resolveAltDownloadUrl(title: string, artist: string): Promise<string> {
+  return resolveAltUrl(title, artist, true);
+}
+
+/**
+ * 播放兜底用：酷狗取链全失败后调用。
+ * 站点失败同样写入会话记忆；被记忆命中时直接抛错（上层会回退到原错误提示）。
+ */
+export async function resolveAltPlaybackUrl(title: string, artist: string): Promise<string> {
+  return resolveAltUrl(title, artist, true);
 }

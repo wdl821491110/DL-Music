@@ -186,6 +186,7 @@ export default function SettingsScreen() {
     quality,
     animationsEnabled,
     showLyricTranslation,
+    altSourceFallback,
   } = useSettings();
   const [loggedIn, setLoggedIn] = useState(() => isLoggedIn());
   const [aboutVisible, setAboutVisible] = useState(false);
@@ -326,6 +327,25 @@ export default function SettingsScreen() {
                   </Text>
                 ) : null}
               </YStack>
+              <View height={StyleSheet.hairlineWidth} backgroundColor={palette.border} />
+              <XStack alignItems="center" gap={12}>
+                <YStack flex={1} gap={2}>
+                  <Text color={palette.text} fontSize={14.5} fontWeight="600">
+                    无版权自动换源
+                  </Text>
+                  <Text color={palette.textTertiary} fontSize={11.5} lineHeight={16}>
+                    酷狗无版权或需 VIP 时，自动尝试备用音源播放
+                  </Text>
+                </YStack>
+                <Switch
+                  size="$2"
+                  checked={altSourceFallback}
+                  onCheckedChange={(checked) => settingsActions.setAltSourceFallback(checked)}
+                  backgroundColor={altSourceFallback ? palette.accent : palette.cardAlt}
+                  borderWidth={0}>
+                  <Switch.Thumb backgroundColor="#FFFFFF" />
+                </Switch>
+              </XStack>
               <View height={StyleSheet.hairlineWidth} backgroundColor={palette.border} />
               <YStack gap={10}>
                 <Text color={palette.textSecondary} fontSize={13} fontWeight="600">

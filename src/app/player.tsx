@@ -298,7 +298,7 @@ export default function PlayerScreen() {
         420,
         Math.max(180, Math.min(splitLeftWidth - 80, height - insets.top - insets.bottom - 400)),
       )
-    : Math.min(width - 72, compact ? 250 : 320);
+    : Math.min(width - 40, compact ? 250 : 330);
   const busy = loading || buffering;
 
   /** 播放页只有歌手名没有 id：先按名字搜出歌手再跳主页。 */
@@ -534,7 +534,7 @@ export default function PlayerScreen() {
     <YStack alignItems="center" gap={7} paddingHorizontal={isTablet ? 8 : 40} maxWidth={560}>
       <Text
         color={palette.text}
-        fontSize={compact ? 20 : 23}
+        fontSize={compact ? 23 : 27}
         fontWeight="800"
         textAlign="center"
         numberOfLines={1}>
@@ -542,7 +542,7 @@ export default function PlayerScreen() {
       </Text>
       <Text
         color={palette.textSecondary}
-        fontSize={15}
+        fontSize={16}
         numberOfLines={1}
         transition="quickest"
         pressStyle={{ opacity: 0.6 }}
@@ -578,7 +578,7 @@ export default function PlayerScreen() {
       paddingHorizontal={isTablet ? 0 : 28}
       gap={compact ? 14 : 20}
       alignSelf="center">
-      <XStack alignItems="center" justifyContent="center" gap={46}>
+      <XStack alignItems="center" justifyContent="center" gap={38}>
         <XStack
           width={40}
           height={40}
@@ -591,8 +591,8 @@ export default function PlayerScreen() {
           <SFIcon
             symbol={liked ? 'heart.fill' : 'heart'}
             fallback={liked ? 'heart' : 'heart-outline'}
-            size={24}
-            color={liked ? palette.accent : palette.textSecondary}
+            size={21}
+            color={liked ? palette.accent : palette.textTertiary}
           />
         </XStack>
         <XStack
@@ -603,7 +603,7 @@ export default function PlayerScreen() {
           transition="quickest"
           pressStyle={{ opacity: 0.55, scale: 0.88 }}
           onPress={() => setActionsOpen(true)}>
-          <SFIcon symbol="playlist.plus" fallback="playlist-plus" size={24} color={palette.textSecondary} />
+          <SFIcon symbol="playlist.plus" fallback="playlist-plus" size={21} color={palette.textTertiary} />
         </XStack>
         <XStack
           width={40}
@@ -618,14 +618,14 @@ export default function PlayerScreen() {
             height={22}
             borderRadius={6}
             borderWidth={1.5}
-            borderColor={quality === 'flac' ? palette.accent : palette.textSecondary}
+            borderColor={quality === 'flac' ? palette.accent : palette.textTertiary}
             alignItems="center"
             justifyContent="center">
             <Text
               fontSize={9.5}
               fontWeight="800"
               letterSpacing={0.5}
-              color={quality === 'flac' ? palette.accent : palette.textSecondary}>
+              color={quality === 'flac' ? palette.accent : palette.textTertiary}>
               {QUALITY_BADGE[quality]}
             </Text>
           </View>
@@ -642,7 +642,7 @@ export default function PlayerScreen() {
               void shareTrack(track);
             }
           }}>
-          <SFIcon symbol="square.and.arrow.up" fallback="share-social-outline" size={22} color={palette.textSecondary} />
+          <SFIcon symbol="square.and.arrow.up" fallback="share-social-outline" size={20} color={palette.textTertiary} />
         </XStack>
         <XStack
           width={40}
@@ -654,9 +654,9 @@ export default function PlayerScreen() {
           pressStyle={{ opacity: 0.55, scale: 0.88 }}
           onPress={() => { void handleDownload(); }}>
           {downloadBusy ? (
-            <Spinner size="small" color={palette.textSecondary} />
+            <Spinner size="small" color={palette.textTertiary} />
           ) : (
-            <SFIcon symbol="square.and.arrow.down" fallback="download-outline" size={22} color={palette.textSecondary} />
+            <SFIcon symbol="square.and.arrow.down" fallback="download-outline" size={20} color={palette.textTertiary} />
           )}
         </XStack>
       </XStack>

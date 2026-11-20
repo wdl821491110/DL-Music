@@ -48,7 +48,10 @@ export default function TabsLayout() {
         labelStyle={{ fontSize: 10.5, fontWeight: '600' }}>
         {HAS_NATIVE_ACCESSORY && hasTrack ? (
           <NativeTabs.BottomAccessory>
-            <MiniPlayer />
+            {/* 撑高 accessory 底部，让播放条与悬浮 Tab 栏之间留出间距，避免贴合 */}
+            <View style={styles.accessorySpacer}>
+              <MiniPlayer />
+            </View>
           </NativeTabs.BottomAccessory>
         ) : null}
 
@@ -99,5 +102,10 @@ export default function TabsLayout() {
 const styles = StyleSheet.create({
   dock: {
     position: 'absolute',
+  },
+  accessorySpacer: {
+    // 系统 bottomAccessory 高度固定、内容 absoluteFill，padding 撑不高容器；
+    // 用 transform 纯视觉上移播放条，与悬浮 Tab 栏之间露出间距（不影响布局命中）。
+    transform: [{ translateY: -12 }],
   },
 });

@@ -1,8 +1,9 @@
 import { pickStringLike, pickText, toRecords } from '@/lib/api-parse';
 import { normalizeDurationMs, stripEmTags, artistMatches } from '@/lib/format';
 import { mobileApi } from '@/lib/kugou-api';
+import { resolveAltPlaybackUrl } from '@/lib/alt-source';
 
-import { getPreferredQuality, type QualityId } from '@/features/settings/store';
+import { getAltSourceFallback, getPreferredQuality, type QualityId } from '@/features/settings/store';
 
 import type { PlayerTrack } from './types';
 
@@ -34,6 +35,8 @@ export type ResolvedSongSource = {
   /** 实际取链成功所用音源标识；换源兜底后可能与曲目自带 hash 不同，供上层回写。 */
   hash?: string;
   albumAudioId?: string;
+  /** 是否来自备用音源兜底；上层可据此提示用户"酷狗无版权，已切换备用音源"。 */
+  fromAltSource?: boolean;
 };
 
 type SongUrlArgs = {
@@ -54,25 +57,33 @@ type SongUrlOutcome = {
 };
 
 async function requestSongUrl(args: SongUrlArgs): Promise<SongUrlOutcome> {
-  const response = await mobileApi.song_url({
-    hash: args.hash,
-    album_id: args.album_id,
-    album_audio_id: args.album_audio_id,
-    quality: args.quality,
-    free_part: args.freePart ? 1 : 0,
-  });
+  try {
+    const response = await mobileApi.song_url({
+      hash: args.hash,
+      album_id: args.album_id,
+      album_audio_id: args.album_audio_id,
+      quality: args.quality,
+      free_part: args.freePart ? 1 : 0,
+    });
 
-  const body = toRecord(response.body);
-  return {
-    status: Number(body.status ?? 0),
-    urls: [
-      ...collectUrls(body.url),
-      ...collectUrls(body.backupUrl),
-      ...collectUrls(body.backup_url),
-    ],
-    timeLength: body.timeLength,
-    bitrate: body.bitrate ?? body.bitRate,
-  };
+    const body = toRecord(response.body);
+    return {
+      status: Number(body.status ?? 0),
+      urls: [
+        ...collectUrls(body.url),
+        ...collectUrls(body.backupUrl),
+        ...collectUrls(body.backup_url),
+      ],
+      timeLength: body.timeLength,
+      bitrate: body.bitrate ?? body.bitRate,
+    };
+  } catch {
+    // 传输层失败（网关 status=0 / 网络抖动 / SSA 风控）时，底层 reject 的是
+    // 非 Error 的 {status, body, cookie} 对象。若放任抛出，会绕过试听回退、
+    // 音质降级、换源、备用音源整条兜底链，最终只显示通用「播放失败」文案。
+    // 这里转成「没拿到链接」的空 outcome，让上层继续按既有顺序兜底。
+    return { status: 0, urls: [], timeLength: undefined, bitrate: undefined };
+  }
 }
 
 /**
@@ -181,6 +192,21 @@ export async function resolveSongSource(
   }
 
   if (!outcome.urls.length) {
+    // 酷狗取链全失败（无版权 / VIP）：按开备用音源兜底。
+    // 只在开关开启、非云盘歌曲时触发；站点自身失败会写会话记忆，不会每首都重试。
+    if (getAltSourceFallback()) {
+      try {
+        const altUrl = await resolveAltPlaybackUrl(track.title, track.artist);
+        return {
+          uri: altUrl,
+          durationMs: track.durationMs ?? 0,
+          fromAltSource: true,
+        };
+      } catch {
+        // 兜底失败：保持原来的错误提示，不影响既有体验。
+      }
+    }
+
     if (outcome.status === 3) {
       throw new PlaybackUnavailableError('这首歌暂无版权，无法播放');
     }

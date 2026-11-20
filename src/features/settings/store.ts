@@ -39,6 +39,8 @@ export type SettingsState = {
   showLyricTranslation: boolean;
   /** 歌词翻译字号档位（px）。 */
   lyricTranslationFontSize: LyricTranslationFontSize;
+  /** 酷狗取链全失败（无版权/VIP）时，是否自动用备用音源兜底播放。 */
+  altSourceFallback: boolean;
 };
 
 const INITIAL_SETTINGS_STATE: SettingsState = {
@@ -51,6 +53,7 @@ const INITIAL_SETTINGS_STATE: SettingsState = {
   animationsEnabled: true,
   showLyricTranslation: true,
   lyricTranslationFontSize: 15,
+  altSourceFallback: true,
 };
 
 function createStore<T extends object>(initial: T) {
@@ -126,6 +129,10 @@ export function hydrateSettings(): Promise<void> {
           stored && isLyricTranslationFontSize(stored.lyricTranslationFontSize)
             ? stored.lyricTranslationFontSize
             : 15,
+        altSourceFallback:
+          stored && typeof stored.altSourceFallback === 'boolean'
+            ? stored.altSourceFallback
+            : true,
         hydrated: true,
       });
       })().catch(() => {
@@ -148,6 +155,7 @@ function persist() {
     quality,
     animationsEnabled,
     showLyricTranslation,
+    altSourceFallback,
   } = settingsStore.getState();
   void writeStoredAppearance({
     themeMode,
@@ -158,6 +166,7 @@ function persist() {
     quality,
     animationsEnabled,
     showLyricTranslation,
+    altSourceFallback,
   });
 }
 
@@ -194,6 +203,10 @@ export const settingsActions = {
   },
   setShowLyricTranslation(showLyricTranslation: boolean) {
     settingsStore.setState({ showLyricTranslation });
+    persist();
+  },
+  setAltSourceFallback(altSourceFallback: boolean) {
+    settingsStore.setState({ altSourceFallback });
     persist();
   },
 };
@@ -251,6 +264,11 @@ export function getPreferredQuality(): QualityId {
   return settingsStore.getState().quality;
 }
 
+/** 供播放层在取链失败时读取兜底开关（非 hook 场景）。 */
+export function getAltSourceFallback(): boolean {
+  return settingsStore.getState().altSourceFallback;
+}
+
 export function useQuality(): QualityId {
   return useSyncExternalStore(
     settingsStore.subscribe,
@@ -280,5 +298,13 @@ export function useLyricTranslationFontSize(): LyricTranslationFontSize {
     settingsStore.subscribe,
     () => settingsStore.getState().lyricTranslationFontSize,
     () => INITIAL_SETTINGS_STATE.lyricTranslationFontSize
+  );
+}
+
+export function useAltSourceFallback(): boolean {
+  return useSyncExternalStore(
+    settingsStore.subscribe,
+    () => settingsStore.getState().altSourceFallback,
+    () => INITIAL_SETTINGS_STATE.altSourceFallback
   );
 }

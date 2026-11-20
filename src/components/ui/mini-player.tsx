@@ -21,7 +21,7 @@ import { useAnimationsEnabled } from '@/features/settings/store';
 import { useIsDark, usePalette } from '@/hooks/use-palette';
 import { lightImpactHaptic } from '@/lib/haptics';
 
-export const MINI_PLAYER_HEIGHT = 58;
+export const MINI_PLAYER_HEIGHT = 64;
 
 /** 液态玻璃仅在支持的 iOS 上可用；其余平台回退到半透明底色。 */
 const GLASS_AVAILABLE = isGlassEffectAPIAvailable();
@@ -96,7 +96,7 @@ export function MiniPlayer() {
       alignItems="center"
       gap={10}
       paddingHorizontal={12}
-      borderRadius={22}
+      borderRadius={32}
       borderWidth={GLASS_AVAILABLE ? 0 : StyleSheet.hairlineWidth}
       borderColor={palette.border}
       // Android 无玻璃效果：底色几乎不透明，避免滚动内容透过卡片干扰文字
@@ -173,7 +173,7 @@ export function MiniPlayer() {
       exiting={animationsEnabled ? FadeOutDown.duration(180) : undefined}>
       {GLASS_AVAILABLE ? (
         <GlassView
-          style={{ height: MINI_PLAYER_HEIGHT, borderRadius: 22, overflow: 'hidden' }}
+          style={{ height: MINI_PLAYER_HEIGHT, borderRadius: 32, overflow: 'hidden' }}
           glassEffectStyle="regular"
           isInteractive>
           {pill}
