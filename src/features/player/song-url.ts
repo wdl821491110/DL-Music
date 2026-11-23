@@ -54,6 +54,8 @@ type SongUrlOutcome = {
   urls: string[];
   timeLength: unknown;
   bitrate: unknown;
+  /** 是否只拿到试听片段（IsFreePart:1）。会员受限的歌常见"有 URL 但只是试听"，不能当成完整源。 */
+  isTrial: boolean;
 };
 
 async function requestSongUrl(args: SongUrlArgs): Promise<SongUrlOutcome> {
@@ -76,13 +78,14 @@ async function requestSongUrl(args: SongUrlArgs): Promise<SongUrlOutcome> {
       ],
       timeLength: body.timeLength,
       bitrate: body.bitrate ?? body.bitRate,
+      isTrial: args.freePart === true,
     };
   } catch {
     // 传输层失败（网关 status=0 / 网络抖动 / SSA 风控）时，底层 reject 的是
     // 非 Error 的 {status, body, cookie} 对象。若放任抛出，会绕过试听回退、
     // 音质降级、换源、备用音源整条兜底链，最终只显示通用「播放失败」文案。
     // 这里转成「没拿到链接」的空 outcome，让上层继续按既有顺序兜底。
-    return { status: 0, urls: [], timeLength: undefined, bitrate: undefined };
+    return { status: 0, urls: [], timeLength: undefined, bitrate: undefined, isTrial: false };
   }
 }
 
@@ -191,33 +194,42 @@ export async function resolveSongSource(
     }
   }
 
-  if (!outcome.urls.length) {
-    // 酷狗取链全失败（无版权 / VIP）：按开备用音源兜底。
-    // 只在开关开启、非云盘歌曲时触发；站点自身失败会写会话记忆，不会每首都重试。
-    if (getAltSourceFallback()) {
-      try {
-        const altUrl = await resolveAltPlaybackUrl(track.title, track.artist);
-        return {
-          uri: altUrl,
-          durationMs: track.durationMs ?? 0,
-          fromAltSource: true,
-        };
-      } catch {
-        // 兜底失败：保持原来的错误提示，不影响既有体验。
-      }
-    }
+  // 兜底拿完整版。两种情形都要触发：
+  //  1) 酷狗完全取不到 URL（无版权 / VIP / 风控）；
+  //  2) 只拿到试听片段——非会员时酷狗会返回 30~90 秒的试听 URL，"有 URL"不等于完整源，
+  //     若当成成功直接播放，用户听到一半就断，兜底等于没加。
+  const resolvedDuration = normalizeDurationMs(outcome.timeLength);
+  const isTrialOnly =
+    outcome.isTrial ||
+    (!!resolvedDuration &&
+      !!track.durationMs &&
+      resolvedDuration < track.durationMs * 0.6);
+  const needFallback = !outcome.urls.length || isTrialOnly;
 
+  if (needFallback && getAltSourceFallback()) {
+    try {
+      const altUrl = await resolveAltPlaybackUrl(track.title, track.artist);
+      return {
+        uri: altUrl,
+        durationMs: track.durationMs ?? 0,
+        fromAltSource: true,
+      };
+    } catch {
+      // 兜底失败：沿用酷狗结果（试听片段照常可听），或走下面的错误提示。
+    }
+  }
+
+  if (!outcome.urls.length) {
     if (outcome.status === 3) {
       throw new PlaybackUnavailableError('这首歌暂无版权，无法播放');
     }
-
     throw new PlaybackUnavailableError('这首歌需要 VIP，暂时无法播放');
   }
 
   return {
     uri: outcome.urls[0],
     bitrate: typeof outcome.bitrate === 'number' ? outcome.bitrate : undefined,
-    durationMs: normalizeDurationMs(outcome.timeLength) || track.durationMs || 0,
+    durationMs: resolvedDuration || track.durationMs || 0,
     hash: usedArgs.hash,
     albumAudioId: pickStringLike(usedArgs.album_audio_id) || undefined,
   };
