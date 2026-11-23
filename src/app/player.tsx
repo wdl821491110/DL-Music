@@ -39,7 +39,7 @@ import {
 } from '@/features/settings/store';
 import { useIsTablet } from '@/hooks/use-is-tablet';
 import { useIsDark, usePalette } from '@/hooks/use-palette';
-import { resolveAltDownloadUrl } from '@/lib/alt-source';
+import { resolveAltDownloadUrl, type DownloadQuality } from '@/lib/alt-source';
 import { extractAmbientColor, mixHex, peekAmbientColor, withAlpha } from '@/lib/ambient-color';
 import { formatClock, sizedImage } from '@/lib/format';
 import { shareTrack } from '@/lib/share';
@@ -164,6 +164,13 @@ const QUALITY_OPTIONS: { value: QualityId; label: string; hint: string }[] = [
   { value: 'flac', label: '无损音质', hint: '需要酷狗会员，取不到时自动回退' },
 ];
 
+/** 下载音质档位：走备用音源，与播放音质独立，不依赖会员。 */
+const DOWNLOAD_QUALITY_OPTIONS: { value: DownloadQuality; label: string; hint: string }[] = [
+  { value: 'flac', label: '无损 FLAC', hint: '最高音质，文件较大' },
+  { value: '320', label: '高品质 320Kbps', hint: '音质与体积均衡' },
+  { value: '128', label: '标准 128Kbps', hint: '文件最小' },
+];
+
 const LYRIC_ALIGN_OPTIONS: { value: LyricAlign; label: string }[] = [
   { value: 'center', label: '居中对齐' },
   { value: 'left', label: '左对齐' },
@@ -278,6 +285,8 @@ export default function PlayerScreen() {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [likeBusy, setLikeBusy] = useState(false);
   const [downloadBusy, setDownloadBusy] = useState(false);
+  const [downloadQualityOpen, setDownloadQualityOpen] = useState(false);
+  const [downloadQuality, setDownloadQuality] = useState<DownloadQuality>('flac');
   const [qualityOpen, setQualityOpen] = useState(false);
   const [lyricSettingsOpen, setLyricSettingsOpen] = useState(false);
   const quality = useQuality();
@@ -389,19 +398,22 @@ export default function PlayerScreen() {
       .finally(() => setLikeBusy(false));
   }
 
-  /** 主动下载：点按钮才请求备用音源拿直链，下载到临时目录后交给系统面板选保存位置。 */
-  async function handleDownload() {
+  /** 主动下载：先选档位，再请求备用音源拿该档直链，下载到临时目录后交给系统面板选保存位置。 */
+  async function handleDownload(quality: DownloadQuality) {
     if (!track || downloadBusy) return;
     setDownloadBusy(true);
     let tempFile: InstanceType<typeof File> | null = null;
     try {
       showToast('正在查找下载源…');
-      const url = await resolveAltDownloadUrl(track.title, track.artist);
+      const result = await resolveAltDownloadUrl(track.title, track.artist, quality);
+      const isFlac = result.format === 'flac';
+      const ext = isFlac ? 'flac' : 'mp3';
+      const mimeType = isFlac ? 'audio/flac' : 'audio/mpeg';
 
       const safeName = `${track.artist} - ${track.title}`.replace(/[\\/:*?"<>|]/g, '_').slice(0, 120);
-      tempFile = new File(Paths.cache, `${safeName}.mp3`);
+      tempFile = new File(Paths.cache, `${safeName}.${ext}`);
       showToast('正在下载…');
-      await File.downloadFileAsync(url, tempFile);
+      await File.downloadFileAsync(result.url, tempFile);
 
       if (!(await Sharing.isAvailableAsync())) {
         showToast('当前系统不支持文件分享');
@@ -409,7 +421,7 @@ export default function PlayerScreen() {
       }
       // 系统面板：用户可选「存储到文件」并挑选位置；取消也不算错误。
       await Sharing.shareAsync(tempFile.uri, {
-        mimeType: 'audio/mpeg',
+        mimeType,
         dialogTitle: '保存歌曲',
       });
     } catch (cause) {
@@ -652,7 +664,7 @@ export default function PlayerScreen() {
           opacity={downloadBusy ? 0.5 : 1}
           transition="quickest"
           pressStyle={{ opacity: 0.55, scale: 0.88 }}
-          onPress={() => { void handleDownload(); }}>
+          onPress={() => { if (!downloadBusy) setDownloadQualityOpen(true); }}>
           {downloadBusy ? (
             <Spinner size="small" color={palette.textTertiary} />
           ) : (
@@ -824,6 +836,18 @@ export default function PlayerScreen() {
         onSelect={(next) => {
           void playerActions.applyQuality(next);
           showToast(next === 'flac' ? '已选无损音质，取不到时会自动回退' : '音质已切换');
+        }}
+      />
+      <OptionsSheet
+        open={downloadQualityOpen}
+        onOpenChange={setDownloadQualityOpen}
+        title="下载音质"
+        options={DOWNLOAD_QUALITY_OPTIONS}
+        value={downloadQuality}
+        onSelect={(next) => {
+          setDownloadQuality(next);
+          showToast('开始下载…');
+          void handleDownload(next);
         }}
       />
       <LyricSettingsSheet
