@@ -1,0 +1,48 @@
+name: Publish Release from Artifact
+
+# 手动触发：把指定 run 的 artifact 发成正式 Release，便于用 GitHub 代理节点加速下载
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: '来源 run id（内含 apk/ipa artifact）'
+        required: true
+        default: '45186310391'
+      tag:
+        description: 'Release tag'
+        required: true
+        default: 'v1.1.2'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下载来源 run 的 artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh run download "${{ github.event.inputs.run_id }}" --repo "${{ github.repository }}" -D artifacts
+          echo "=== 下载到的文件 ==="
+          find artifacts -type f -exec ls -lh {} \;
+
+      - name: 创建或更新 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          FILES=""
+          while IFS= read -r f; do
+            FILES="$FILES $f"
+          done < <(find artifacts -type f \( -name '*.apk' -o -name '*.ipa' \))
+          echo "待发布: $FILES"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" $FILES --clobber
+          else
+            gh release create "$TAG" $FILES --title "$TAG" --generate-notes
+          fi
+          echo "=== Release 已就绪 ==="
+          gh release view "$TAG"
