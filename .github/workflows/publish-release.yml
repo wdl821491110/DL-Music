@@ -21,6 +21,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout（gh release 需要 git 仓库上下文）
+        uses: actions/checkout@v4
+
       - name: 下载来源 run 的 artifact
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
