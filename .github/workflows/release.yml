@@ -45,7 +45,7 @@ jobs:
         working-directory: android
         run: |
           ./gradlew assembleRelease --no-daemon --max-workers=2 \
-            -PreactNativeArchitectures=arm64-v8a \
+            -PreactNativeArchitectures=armeabi-v7a,arm64-v8a \
             -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1536m -Dfile.encoding=UTF-8"
 
       # 配置了 ANDROID_KEYSTORE_BASE64 等 secrets 时用正式密钥重签名，否则保留 debug 签名

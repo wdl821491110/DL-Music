@@ -1,4 +1,5 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { Slot } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   Keyboard,
@@ -10,7 +11,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MiniPlayer } from '@/components/ui/mini-player';
+import { Sidebar } from '@/components/ui/sidebar';
 import { useHasTrack } from '@/features/player/store';
+import { TabletDockMaxWidth, SidebarBreakpoint } from '@/constants/layout';
 import { usePalette } from '@/hooks/use-palette';
 
 // iOS 26+ 由系统原生 UITabBarController 提供：悬浮液态玻璃胶囊、
@@ -22,9 +25,13 @@ const HAS_NATIVE_ACCESSORY = IS_IOS && IOS_MAJOR >= 26;
 export default function TabsLayout() {
   const palette = usePalette();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const hasTrack = useHasTrack();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  // 平板：窗口短边 ≥ 阈值，走左侧栏 + 内容区分栏布局（借鉴桌面版）
+  const isTablet = Math.min(width, height) >= SidebarBreakpoint;
+  const dockWidth = Math.min(width - 48, TabletDockMaxWidth);
 
   useEffect(() => {
     if (HAS_NATIVE_ACCESSORY) return;
@@ -39,6 +46,34 @@ export default function TabsLayout() {
     };
   }, []);
 
+  // ---------- 平板布局 ----------
+  if (isTablet) {
+    return (
+      <View style={[styles.tabletRoot, { backgroundColor: palette.background }]}>
+        <Sidebar />
+        <View style={styles.tabletContent}>
+          <Slot />
+        </View>
+        {!keyboardVisible && hasTrack ? (
+          <View style={styles.tabletDockWrap}>
+            <View
+              pointerEvents="box-none"
+              style={[
+                styles.tabletDock,
+                {
+                  bottom: insets.bottom + 12,
+                  width: dockWidth,
+                },
+              ]}>
+              <MiniPlayer />
+            </View>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
+  // ---------- 手机布局 ----------
   return (
     <>
       <NativeTabs
@@ -100,6 +135,24 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+  tabletRoot: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  tabletContent: {
+    flex: 1,
+  },
+  tabletDockWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    pointerEvents: 'box-none',
+  },
+  tabletDock: {
+    // 由 tabletDockWrap 负责水平居中，这里只管悬浮
+  },
   dock: {
     position: 'absolute',
   },
