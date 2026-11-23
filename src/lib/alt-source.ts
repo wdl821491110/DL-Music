@@ -33,6 +33,15 @@ export type AltSong = {
   quality: Quality;
 };
 
+/** 下载音质档位（独立于播放音质）：无损 / 320 / 128。 */
+export type DownloadQuality = 'flac' | '320' | '128';
+
+export type AltDownloadResult = {
+  url: string;
+  /** 站点实际下发的格式（flac / mp3），用于决定文件后缀与 mimeType。 */
+  format: string;
+};
+
 export class AltSourceError extends Error {}
 
 function sleep(ms: number): Promise<void> {
@@ -109,6 +118,20 @@ function pickBestQuality(minfo: unknown[]): Quality | null {
   );
 }
 
+/** 按指定档位选音质；该档不存在时向上/向下就近降级，保证下载不会失败。 */
+function pickQualityByTarget(minfo: unknown[], target: DownloadQuality): Quality | null {
+  const qualities = toRecords(minfo)
+    .map((item) => ({ bitrate: pickStringLike(item.bitrate), format: pickText(item.format) }))
+    .filter((item) => item.bitrate);
+  if (!qualities.length) return null;
+  const flac = () => qualities.find((q) => q.format === 'flac');
+  const q320 = () => qualities.find((q) => q.bitrate === '320');
+  const q128 = () => qualities.find((q) => q.bitrate === '128');
+  if (target === 'flac') return flac() ?? q320() ?? q128() ?? qualities[0];
+  if (target === '320') return q320() ?? flac() ?? q128() ?? qualities[0];
+  return q128() ?? q320() ?? flac() ?? qualities[0];
+}
+
 /** 会话级失败记忆：同一首歌失败后不再重复请求，规避站点反爬。key = 归一化歌手+歌名。 */
 const failureMemory = new Map<string, number>();
 const FAILURE_TTL_MS = 10 * 60 * 1000;
@@ -134,12 +157,14 @@ function rememberFailure(key: string): void {
  * @param title 歌名
  * @param artist 歌手（用于匹配，避免下错翻唱/同名曲）
  * @param respectFailureMemory 是否遵守会话失败记忆；下载按钮为 true，播放兜底为 true
+ * @param targetQuality 指定下载档位（flac/320/128）；不传则取最高档，播放兜底不传
  */
 async function resolveAltUrl(
   title: string,
   artist: string,
-  respectFailureMemory = true
-): Promise<string> {
+  respectFailureMemory = true,
+  targetQuality?: DownloadQuality
+): Promise<AltDownloadResult> {
   const failureKey = getFailureKey(title, artist);
   if (respectFailureMemory && isRecentlyFailed(failureKey)) {
     throw new AltSourceError('备用音源近期匹配失败，已跳过请求');
@@ -168,7 +193,9 @@ async function resolveAltUrl(
       const songid = pickStringLike(matched.id);
       const time = pickStringLike(matched.time);
       const sign = pickText(matched.sign);
-      const quality = pickBestQuality(toRecords(matched.minfo));
+      const quality = targetQuality
+        ? pickQualityByTarget(toRecords(matched.minfo), targetQuality)
+        : pickBestQuality(toRecords(matched.minfo));
       if (!songid || !time || !sign || !quality) {
         lastError = '备用音源返回的歌曲信息不完整';
         continue;
@@ -190,7 +217,7 @@ async function resolveAltUrl(
       }
 
       failureMemory.delete(failureKey);
-      return url;
+      return { url, format: quality.format };
     } catch (error) {
       lastError = error instanceof Error ? error.message : '备用音源请求失败';
     }
@@ -200,9 +227,13 @@ async function resolveAltUrl(
   throw new AltSourceError(lastError);
 }
 
-/** 下载按钮用：拿直链存文件。 */
-export async function resolveAltDownloadUrl(title: string, artist: string): Promise<string> {
-  return resolveAltUrl(title, artist, true);
+/** 下载按钮用：按指定档位拿直链 + 实际格式，存文件后缀由调用方据 format 决定。 */
+export async function resolveAltDownloadUrl(
+  title: string,
+  artist: string,
+  quality: DownloadQuality
+): Promise<AltDownloadResult> {
+  return resolveAltUrl(title, artist, true, quality);
 }
 
 /**
@@ -210,5 +241,6 @@ export async function resolveAltDownloadUrl(title: string, artist: string): Prom
  * 站点失败同样写入会话记忆；被记忆命中时直接抛错（上层会回退到原错误提示）。
  */
 export async function resolveAltPlaybackUrl(title: string, artist: string): Promise<string> {
-  return resolveAltUrl(title, artist, true);
+  const result = await resolveAltUrl(title, artist, true);
+  return result.url;
 }
