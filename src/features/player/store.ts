@@ -137,8 +137,9 @@ function ensureAudioPlayer(): AudioPlayer {
   audioPlayer = createAudioPlayer(null, { updateInterval: 100 });
   audioPlayer.addListener('playbackStatusUpdate', handlePlaybackStatus);
 
-  // iOS 锁屏 / 控制中心 / CarPlay 的「上一首 / 下一首」由原生 MediaController 转发为事件。
-  // expo-audio 的类型里未声明这两个自定义事件，故用结构断言注册；Android 不会发射，保持无害。
+  // 锁屏 / 控制中心 / CarPlay 的「上一首 / 下一首」由原生转发为事件：
+  // iOS 走 MediaController patch，Android 走 expo-audio 原生 patch（构建时 patch-expo-audio-android.mjs）。
+  // expo-audio 的类型里未声明这两个自定义事件，故用结构断言注册。
   const remoteEvents = audioPlayer as unknown as {
     addListener: (event: string, listener: () => void) => { remove: () => void };
   };
