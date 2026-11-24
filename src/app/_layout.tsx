@@ -9,6 +9,7 @@ import { TamaguiProvider } from 'tamagui';
 
 import { hydrateSettings, useSettingsHydrated } from '@/features/settings/store';
 import { ToastHost } from '@/components/ui/toast';
+import { UpdatePrompt } from '@/components/update-prompt';
 import { useEffectiveScheme, usePalette } from '@/hooks/use-palette';
 import { requestNotificationPermission } from '@/lib/notifications';
 import { tamaguiConfig } from '../../tamagui.config';
@@ -132,6 +133,7 @@ export default function RootLayout() {
             }}
           />
         </Stack>
+        <UpdatePrompt />
         <ToastHost />
         <StatusBar style={isDark ? 'light' : 'dark'} />
       </ThemeProvider>
