@@ -34,6 +34,9 @@ jobs:
       - name: Patch expo-audio for media controls
         run: node scripts/patch-expo-audio-android.mjs
 
+      - name: Patch expo-audio for diagnostics
+        run: node scripts/patch-media-diagnostics.mjs
+
       - name: Setup Java
         uses: actions/setup-java@v5
         with:
