@@ -945,7 +945,7 @@ export default function LoginScreen() {
             />
             <YStack alignItems="center" gap={6}>
               <Text color={palette.text} fontSize={23} fontWeight="800" letterSpacing={0.4}>
-                登录 MoeKoe
+                登录 DL Music
               </Text>
               <Text color={palette.textTertiary} fontSize={13}>
                 {MODE_SUBTITLES[mode]}

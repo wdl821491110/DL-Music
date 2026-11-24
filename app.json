@@ -1,17 +1,17 @@
 {
   "expo": {
-    "name": "MoeKoe",
-    "slug": "moekoe",
+    "name": "DL Music",
+    "slug": "dl-music",
     "version": "1.1.1",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
-    "scheme": "moekoe",
+    "scheme": "dl-music",
     "userInterfaceStyle": "automatic",
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "ios": {
-      "bundleIdentifier": "cn.moekoe.music",
+      "bundleIdentifier": "cn.dl.music",
       "buildNumber": "1.1.1",
       "supportsTablet": true,
       "infoPlist": {
@@ -24,7 +24,7 @@
       }
     },
     "android": {
-      "package": "cn.moekoe.music",
+      "package": "cn.dl.music",
       "versionCode": 3,
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -37,8 +37,8 @@
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png",
-      "name": "MoeKoe",
-      "shortName": "MoeKoe"
+      "name": "DL Music",
+      "shortName": "DL Music"
     },
     "plugins": [
       "expo-router",

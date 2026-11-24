@@ -84,11 +84,11 @@ jobs:
       - name: Build unsigned archive
         run: |
           xcodebuild archive \
-            -workspace ios/MoeKoe.xcworkspace \
-            -scheme MoeKoe \
+            -workspace ios/DLMusic.xcworkspace \
+            -scheme DLMusic \
             -configuration Release \
             -destination 'generic/platform=iOS' \
-            -archivePath build/MoeKoe.xcarchive \
+            -archivePath build/DLMusic.xcarchive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -102,8 +102,8 @@ jobs:
           else
             VERSION="dev-${GITHUB_SHA::7}"
           fi
-          cp -R "build/MoeKoe.xcarchive/Products/Applications/MoeKoe.app" Payload/
-          zip -qry "dist/MoeKoeMusic-Mobile-${VERSION}-ios-unsigned.ipa" Payload
+          cp -R "build/DLMusic.xcarchive/Products/Applications/DLMusic.app" Payload/
+          zip -qry "dist/DL-Music-${VERSION}-ios-unsigned.ipa" Payload
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

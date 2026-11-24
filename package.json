@@ -1,8 +1,8 @@
 {
-  "name": "moekoe",
+  "name": "dl-music",
   "main": "expo-router/entry",
   "version": "1.1.1",
-  "description": "MoeKoe mobile app",
+  "description": "DL Music mobile app",
   "scripts": {
     "start": "expo start",
     "generate:mobile-api": "node ./scripts/generate-mobile-api-entry.mjs",

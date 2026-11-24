@@ -55,8 +55,7 @@ const QUALITY_OPTIONS = [
   { value: 'flac', label: '无损' },
 ] as const satisfies readonly { value: QualityId; label: string }[];
 
-const REPO_URL = 'https://github.com/MoeKoeMusic/MoeKoeMusic-Mobile';
-const WEBSITE_URL = 'https://music.moekoe.cn';
+const REPO_URL = 'https://github.com/wdl821491110/DL-Music';
 const DISCLAIMER = [
   '0. 本程序是酷狗第三方客户端，并非酷狗官方，需要更完善的功能请下载官方客户端体验.',
   '1. 本项目仅供学习使用，请尊重版权，请勿利用此项目从事商业行为及非法用途！',
@@ -433,16 +432,6 @@ export default function SettingsScreen() {
                 marginHorizontal={14}
               />
               <SettingsRow
-                label="官网"
-                icon="globe-outline"
-                onPress={() => openWeb(WEBSITE_URL, '官网')}
-              />
-              <View
-                height={StyleSheet.hairlineWidth}
-                backgroundColor={palette.border}
-                marginHorizontal={14}
-              />
-              <SettingsRow
                 label="关于"
                 icon="information-circle-outline"
                 onPress={() => setAboutVisible(true)}
@@ -462,7 +451,7 @@ export default function SettingsScreen() {
 
           {version ? (
             <Text color={palette.textTertiary} fontSize={11} textAlign="center" paddingTop={6}>
-              MoeKoe Music v{version}
+              DL Music v{version}
             </Text>
           ) : null}
         </YStack>
@@ -509,7 +498,7 @@ export default function SettingsScreen() {
                   </Text>
                 </XStack>
                 <Text color={palette.textTertiary} fontSize={11} textAlign="center">
-                  © MoeKoe Music{version ? ` V${version} - ${Platform.OS}` : ''}
+                  © DL Music{version ? ` V${version} - ${Platform.OS}` : ''}
                 </Text>
               </ScrollView>
             </YStack>

@@ -1,9 +1,9 @@
 import * as SecureStore from 'expo-secure-store';
 
 const STORAGE_KEYS = {
-  guid: 'moekoe.kugou.guid',
-  dfid: 'moekoe.kugou.dfid',
-  session: 'moekoe.kugou.session',
+  guid: 'dl.music.kugou.guid',
+  dfid: 'dl.music.kugou.dfid',
+  session: 'dl.music.kugou.session',
 } as const;
 
 async function readJson<T>(key: string): Promise<T | null> {

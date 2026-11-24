@@ -55,7 +55,7 @@ export function Sidebar() {
       <View style={styles.topRow}>
         {collapsed ? null : (
           <Text fontSize={15} fontWeight="700" color={palette.text} numberOfLines={1}>
-            MoeKoe
+            DL Music
           </Text>
         )}
         <Pressable

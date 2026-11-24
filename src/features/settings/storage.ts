@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-const STORAGE_KEY = 'moekoe.settings.appearance';
+const STORAGE_KEY = 'dl.music.settings.appearance';
 
 export type StoredAppearance = {
   themeMode?: unknown;
