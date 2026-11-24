@@ -1,20 +1,20 @@
-import { File, Paths } from 'expo-file-system';
+import { File, Paths, DownloadTask } from 'expo-file-system';
+import { getContentUriAsync } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 
 const REPO = 'wdl821491110/DL-Music';
 const API_LATEST = `https://api.github.com/repos/${REPO}/releases/latest`;
 
 /**
- * 实测可用的 GitHub 代理节点（2026-11-24 用真实 IPA Range 请求验证），按响应速度排序。
- * 下载安装包时逐个尝试，任一成功即用；全部失败再回退 GitHub 直链。
- * 代理随时可能失效，所以保留多个 + 直链兜底，不依赖单一节点。
+ * 实测可用的 GitHub 代理节点（按响应速度排序），逐个尝试，全失败回退直链。
+ * 代理随时可能失效，所以保留多个 + 直链兜底。
  */
 const PROXY_NODES = [
-  'https://gh.acmsz.top/',
   'https://ghfast.top/',
-  'https://ghproxy.icu/',
   'https://gh-proxy.com/',
+  'https://ghproxy.icu/',
+  'https://gh.acmsz.top/',
   'https://ghgo.de5.net/',
   'https://gh.dpik.top/',
   'https://cdn.gh-proxy.com/',
@@ -34,11 +34,30 @@ export type LatestRelease = {
 export type DownloadedFile = InstanceType<typeof File>;
 
 export type DownloadProgress = {
-  /** 0-1，-1 表示无法计算（服务器未返回 Content-Length） */
+  /** 0-1，-1 表示无法计算 */
   fraction: number;
   written: number;
   total: number;
 };
+
+export type DownloadStatus = 'idle' | 'downloading' | 'done' | 'error';
+
+type ActiveDownload = {
+  version: string;
+  filePath: string;
+  task: DownloadTask | null;
+  promise: Promise<DownloadedFile> | null;
+  status: DownloadStatus;
+  progress: DownloadProgress | null;
+  error: string | null;
+  listeners: Set<() => void>;
+};
+
+/**
+ * 模块级单例：下载任务不绑在页面 state 上。
+ * 切后台 / 页面重挂载时，页面重新订阅同一个任务，进度接着走，不会重新下载。
+ */
+let active: ActiveDownload | null = null;
 
 function normalizeVersion(v: string): string[] {
   return v.replace(/^v/i, '').split(/[.\-+]/).filter(Boolean);
@@ -58,7 +77,7 @@ export function compareVersion(a: string, b: string): number {
   return 0;
 }
 
-/** 从 GitHub Releases API 拉取最新发布信息，并挑出当前平台可用的安装包。 */
+/** 从 GitHub Releases API 拉取最新发布信息。 */
 export async function fetchLatestRelease(): Promise<LatestRelease> {
   const response = await fetch(API_LATEST, {
     headers: { Accept: 'application/vnd.github+json' },
@@ -75,73 +94,150 @@ export async function fetchLatestRelease(): Promise<LatestRelease> {
   };
 }
 
-/** 取当前平台对应的安装包直链。 */
 export function pickAssetUrl(info: LatestRelease): string | undefined {
   return Platform.OS === 'ios' ? info.ipaUrl : info.apkUrl;
 }
 
-export type DownloadCallbacks = {
-  /** 切换节点时回调：第 index 个 / 共 total 个，节点名 label */
-  onNode?: (label: string, index: number, total: number) => void;
-  /** 下载进度回调 */
-  onProgress?: (progress: DownloadProgress) => void;
-};
-
-/**
- * 依次用代理 + 直链尝试下载，任一成功即返回 File。
- * 每次尝试前清掉上次的残留文件，避免部分下载被当成成功。
- * onProgress 直接来自 expo-file-system 的真实字节进度。
- */
-export async function downloadInstaller(
-  rawUrl: string,
-  fileName: string,
-  callbacks: DownloadCallbacks = {},
-): Promise<DownloadedFile> {
-  const { onNode, onProgress } = callbacks;
-  const candidates = [
-    ...PROXY_NODES.map((node) => ({
-      label: node.replace(/^https:\/\//, '').replace(/\/$/, ''),
-      url: `${node}${rawUrl}`,
-    })),
-    { label: 'GitHub 直链', url: rawUrl },
-  ];
-  const dest = new File(Paths.cache, fileName);
-  let lastError: unknown;
-
-  for (let i = 0; i < candidates.length; i++) {
-    const candidate = candidates[i];
-    onNode?.(candidate.label, i + 1, candidates.length);
-    try {
-      if (dest.exists) await dest.delete();
-      await File.downloadFileAsync(candidate.url, dest, {
-        onProgress: ({ bytesWritten, totalBytes }) => {
-          onProgress?.({
-            fraction: totalBytes > 0 ? bytesWritten / totalBytes : -1,
-            written: bytesWritten,
-            total: totalBytes,
-          });
-        },
-      });
-      return dest;
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  if (dest.exists) {
-    try { await dest.delete(); } catch { /* 清理失败可忽略 */ }
-  }
-  throw lastError instanceof Error ? lastError : new Error('所有下载节点均失败');
+function fileNameFor(version: string): string {
+  return `DL-Music-${version}.${Platform.OS === 'ios' ? 'ipa' : 'apk'}`;
 }
 
-/** 交给系统面板保存到本地（iOS「存储到文件」/ Android 保存安装包）。 */
-export async function saveInstaller(file: DownloadedFile, title: string): Promise<void> {
+/** 订阅下载状态变化，返回取消订阅函数。 */
+export function subscribeDownload(listener: () => void): () => void {
+  if (!active) return () => undefined;
+  active.listeners.add(listener);
+  return () => { active?.listeners.delete(listener); };
+}
+
+function emitChange() {
+  active?.listeners.forEach((l) => l());
+}
+
+export type DownloadSnapshot = {
+  status: DownloadStatus;
+  progress: DownloadProgress | null;
+  version: string | null;
+  error: string | null;
+};
+
+/** 读取当前下载状态快照（供页面渲染）。 */
+export function getDownloadSnapshot(): DownloadSnapshot {
+  if (!active) return { status: 'idle', progress: null, version: null, error: null };
+  return {
+    status: active.status,
+    progress: active.progress,
+    version: active.version,
+    error: active.error,
+  };
+}
+
+/**
+ * 启动下载（幂等）：同一版本已在下载/已完成则直接复用，不重启。
+ * 依次尝试代理 + 直链，任一成功即用。用 DownloadTask（可恢复 + 后台 session）。
+ */
+export function startDownload(version: string, rawUrl: string): void {
+  if (
+    active &&
+    active.version === version &&
+    (active.status === 'downloading' || active.status === 'done')
+  ) {
+    return;
+  }
+  if (active) {
+    try { active.task?.cancel(); } catch { /* ignore */ }
+    active = null;
+  }
+
+  const dest = new File(Paths.cache, fileNameFor(version));
+  const urls = [...PROXY_NODES.map((node) => `${node}${rawUrl}`), rawUrl];
+
+  const session: ActiveDownload = {
+    version,
+    filePath: dest.uri,
+    task: null,
+    promise: null,
+    status: 'downloading',
+    progress: null,
+    error: null,
+    listeners: new Set(),
+  };
+  active = session;
+
+  const run = async (): Promise<DownloadedFile> => {
+    let lastError: unknown;
+    for (const url of urls) {
+      if (active !== session) throw new Error('下载已取消');
+      try {
+        if (dest.exists) await dest.delete();
+        const task = File.createDownloadTask(url, dest, {
+          sessionType: 'background',
+          onProgress: ({ bytesWritten, totalBytes }) => {
+            if (active !== session) return;
+            session.progress = {
+              fraction: totalBytes > 0 ? bytesWritten / totalBytes : -1,
+              written: bytesWritten,
+              total: totalBytes,
+            };
+            emitChange();
+          },
+        });
+        session.task = task;
+        const file = await task.downloadAsync();
+        if (!file) throw new Error('下载被暂停');
+        session.status = 'done';
+        session.progress = { fraction: 1, written: 1, total: 1 };
+        emitChange();
+        return file;
+      } catch (error) {
+        lastError = error;
+        try { if (dest.exists) await dest.delete(); } catch { /* ignore */ }
+      }
+    }
+    session.status = 'error';
+    session.error = lastError instanceof Error ? lastError.message : '所有下载节点均失败';
+    emitChange();
+    throw lastError instanceof Error ? lastError : new Error('所有下载节点均失败');
+  };
+
+  // 用 .catch 吞掉未处理的 rejection；错误状态已写进 session.error，页面通过 snapshot 读取
+  session.promise = run().catch(() => null as unknown as DownloadedFile);
+}
+
+/** 拿到已下载完成的文件（仅 done 状态可用）。 */
+export async function getDownloadedFile(): Promise<DownloadedFile | null> {
+  if (!active || active.status !== 'done' || !active.promise) return null;
+  return active.promise;
+}
+
+/** 重置下载状态（关闭弹窗 / 重新开始时调用）。 */
+export function resetDownload(): void {
+  if (active) {
+    try { active.task?.cancel(); } catch { /* ignore */ }
+  }
+  active = null;
+}
+
+/**
+ * 安装 / 保存安装包。
+ * 安卓：拿 content:// URI 调系统安装器（需 REQUEST_INSTALL_PACKAGES 权限）。
+ * iOS：调系统分享面板存到「文件」，用户再签名安装。
+ */
+export async function installOrSave(version: string): Promise<boolean> {
+  const file = await getDownloadedFile();
+  if (!file) throw new Error('安装包尚未下载完成');
+  const fileName = fileNameFor(version);
+
+  if (Platform.OS === 'android') {
+    const contentUri = await getContentUriAsync(file.uri);
+    // ACTION_VIEW + apk mime 会拉起系统安装器
+    await Linking.openURL(contentUri);
+    return true;
+  }
+
   if (!(await Sharing.isAvailableAsync())) throw new Error('当前系统不支持文件保存');
   await Sharing.shareAsync(file.uri, {
-    mimeType:
-      Platform.OS === 'ios'
-        ? 'application/octet-stream'
-        : 'application/vnd.android.package-archive',
-    dialogTitle: title,
+    mimeType: 'application/octet-stream',
+    dialogTitle: `保存 ${fileName}`,
   });
+  return false;
 }
