@@ -67,14 +67,13 @@
 
 <table>
   <tr>
-    <td><img src="./images/screen-1.png" alt="Screenshot 1" width="320" /></td>
-    <td><img src="./images/screen-2.png" alt="Screenshot 2" width="320" /></td>
-    <td><img src="./images/screen-3.png" alt="Screenshot 3" width="320" /></td>
+    <td align="center"><img src="./images/screen-1.png" alt="首页" width="260" /><br/>首页</td>
+    <td align="center"><img src="./images/screen-2.png" alt="播放页" width="260" /><br/>播放页</td>
+    <td align="center"><img src="./images/screen-3.png" alt="发现页" width="260" /><br/>发现页</td>
   </tr>
   <tr>
-    <td><img src="./images/screen-4.png" alt="Screenshot 4" width="320" /></td>
-    <td><img src="./images/screen-5.png" alt="Screenshot 5" width="320" /></td>
-    <td><img src="./images/screen-6.png" alt="Screenshot 6" width="320" /></td>
+    <td align="center"><img src="./images/screen-4.png" alt="搜索页" width="260" /><br/>搜索页</td>
+    <td align="center"><img src="./images/screen-5.png" alt="我的" width="260" /><br/>我的</td>
   </tr>
 </table>
 
