@@ -49,7 +49,7 @@ jobs:
         run: |
           mkdir -p dist
           cp android/app/build/outputs/apk/release/app-release.apk \
-            "dist/DL-Music-$(git rev-parse --short HEAD)-android.apk"
+            "dist/DL-Music.apk"
           ls -lh dist
 
       - name: Upload artifact
