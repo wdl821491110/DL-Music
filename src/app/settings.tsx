@@ -540,6 +540,16 @@ export default function SettingsScreen() {
                 marginHorizontal={14}
               />
               <SettingsRow
+                label="媒体诊断"
+                icon="analytics-outline"
+                onPress={() => router.push('/media-diagnose')}
+              />
+              <View
+                height={StyleSheet.hairlineWidth}
+                backgroundColor={palette.border}
+                marginHorizontal={14}
+              />
+              <SettingsRow
                 label="GitHub"
                 icon="logo-github"
                 onPress={() => openWeb(REPO_URL, 'GitHub')}
