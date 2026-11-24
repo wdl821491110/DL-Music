@@ -97,13 +97,8 @@ jobs:
       - name: Package unsigned IPA
         run: |
           mkdir -p dist Payload
-          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-          else
-            VERSION="dev-${GITHUB_SHA::7}"
-          fi
           cp -R "build/DLMusic.xcarchive/Products/Applications/DLMusic.app" Payload/
-          zip -qry "dist/DL-Music-${VERSION}-ios-unsigned.ipa" Payload
+          zip -qry "dist/DL-Music.ipa" Payload
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
