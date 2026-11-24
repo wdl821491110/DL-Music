@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SFIcon } from '@/components/ui/sf-icon';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, View, XStack, YStack, Switch } from 'tamagui';
@@ -24,7 +24,18 @@ import {
   type ThemeMode,
 } from '@/features/settings/store';
 import { useEffectiveScheme, usePalette } from '@/hooks/use-palette';
+import { showToast } from '@/components/ui/toast';
 import { clearApiSession } from '@/lib/kugou-api';
+import {
+  compareVersion,
+  downloadInstaller,
+  fetchLatestRelease,
+  pickAssetUrl,
+  saveInstaller,
+  type DownloadedFile,
+  type DownloadProgress,
+  type LatestRelease,
+} from '@/lib/updater';
 
 const THEME_MODE_OPTIONS = [
   { value: 'system', label: '跟随系统' },
@@ -66,6 +77,13 @@ const DISCLAIMER = [
   '6. 本项目仅用于对技术可行性的探索及研究，不接受任何商业（包括但不限于广告等）合作及捐赠。',
   '7. 如果官方音乐平台觉得本项目不妥，可联系本项目更改或移除。',
 ];
+
+function formatBytes(bytes: number): string {
+  if (bytes < 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
 
 function AccentSwatch({
   preset,
@@ -189,10 +207,79 @@ export default function SettingsScreen() {
   } = useSettings();
   const [loggedIn, setLoggedIn] = useState(() => isLoggedIn());
   const [aboutVisible, setAboutVisible] = useState(false);
+  const [updateVisible, setUpdateVisible] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<LatestRelease | null>(null);
+  const [hasUpdate, setHasUpdate] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadHint, setDownloadHint] = useState('');
+  const [progress, setProgress] = useState<DownloadProgress | null>(null);
+  const autoChecked = useRef(false);
   const version = Constants.expoConfig?.version ?? '';
 
   function openWeb(url: string, title: string) {
     router.push({ pathname: '/web', params: { url, title } });
+  }
+
+  /** silent=true 时只更新「有新版本」提醒，不弹窗、失败不打扰用户。 */
+  async function checkUpdate(silent = false) {
+    if (checkingUpdate) return;
+    setCheckingUpdate(true);
+    try {
+      const info = await fetchLatestRelease();
+      if (!info.version) throw new Error('未获取到版本信息');
+      setUpdateInfo(info);
+      const newer = !!version && compareVersion(info.version, version) > 0;
+      setHasUpdate(newer);
+      if (!silent) setUpdateVisible(true);
+    } catch (cause) {
+      if (!silent) {
+        showToast(cause instanceof Error ? cause.message : '检查更新失败，请稍后再试');
+      }
+    } finally {
+      setCheckingUpdate(false);
+    }
+  }
+
+  // 进入设置页静默检查一次，有新版本就在「在线升级」行显示提醒。
+  useEffect(() => {
+    if (autoChecked.current) return;
+    autoChecked.current = true;
+    void checkUpdate(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleDownloadUpdate() {
+    if (!updateInfo || downloading) return;
+    const url = pickAssetUrl(updateInfo);
+    if (!url) {
+      showToast('当前平台暂无可下载的安装包');
+      return;
+    }
+    setDownloading(true);
+    setProgress(null);
+    let file: DownloadedFile | null = null;
+    try {
+      const ext = Platform.OS === 'ios' ? 'ipa' : 'apk';
+      const fileName = `DL-Music-${updateInfo.version}.${ext}`;
+      showToast('正在下载安装包…');
+      file = await downloadInstaller(url, fileName, {
+        onNode: (label, index, total) => setDownloadHint(`节点 ${index}/${total} · ${label}`),
+        onProgress: (p) => setProgress(p),
+      });
+      setDownloadHint('下载完成，选择保存位置');
+      await saveInstaller(file, `保存 ${fileName}`);
+      showToast('安装包已保存到本地');
+    } catch (cause) {
+      showToast(cause instanceof Error ? cause.message : '下载失败，请稍后再试');
+    } finally {
+      if (file) {
+        try { await file.delete(); } catch { /* 清理失败可忽略 */ }
+      }
+      setDownloadHint('');
+      setProgress(null);
+      setDownloading(false);
+    }
   }
 
   function confirmLogout() {
@@ -422,6 +509,22 @@ export default function SettingsScreen() {
                 marginHorizontal={14}
               />
               <SettingsRow
+                label="在线升级"
+                value={
+                  checkingUpdate
+                    ? '检查中…'
+                    : hasUpdate && updateInfo
+                      ? `有新版本 ${updateInfo.version}`
+                      : undefined
+                }
+                onPress={() => void checkUpdate()}
+              />
+              <View
+                height={StyleSheet.hairlineWidth}
+                backgroundColor={palette.border}
+                marginHorizontal={14}
+              />
+              <SettingsRow
                 label="GitHub"
                 icon="logo-github"
                 onPress={() => openWeb(REPO_URL, 'GitHub')}
@@ -500,6 +603,165 @@ export default function SettingsScreen() {
                 <Text color={palette.textTertiary} fontSize={11} textAlign="center">
                   © DL Music{version ? ` V${version} - ${Platform.OS}` : ''}
                 </Text>
+              </ScrollView>
+            </YStack>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={updateVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!downloading) setUpdateVisible(false);
+        }}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => {
+            if (!downloading) setUpdateVisible(false);
+          }}>
+          <Pressable style={styles.modalContainer} onPress={(event) => event.stopPropagation()}>
+            <YStack
+              maxHeight="82%"
+              backgroundColor={palette.card}
+              borderRadius={22}
+              borderWidth={StyleSheet.hairlineWidth}
+              borderColor={palette.border}
+              overflow="hidden">
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.modalContent}>
+                <YStack gap={6} alignItems="center">
+                  <Text color={palette.text} fontSize={21} fontWeight="800" textAlign="center">
+                    在线升级
+                  </Text>
+                  <Text color={palette.textSecondary} fontSize={13}>
+                    当前版本 v{version}
+                  </Text>
+                  {updateInfo ? (
+                    <Text color={palette.accent} fontSize={15} fontWeight="700">
+                      最新版本 {updateInfo.version}
+                    </Text>
+                  ) : null}
+                </YStack>
+
+                {updateInfo ? (
+                  <>
+                    {version && compareVersion(updateInfo.version, version) > 0 ? (
+                      <XStack
+                        backgroundColor={palette.accent}
+                        borderRadius={10}
+                        paddingVertical={7}
+                        paddingHorizontal={12}
+                        alignSelf="center">
+                        <Text color={palette.onAccent} fontSize={12} fontWeight="700">
+                          发现新版本
+                        </Text>
+                      </XStack>
+                    ) : (
+                      <Text color={palette.textTertiary} fontSize={13} textAlign="center">
+                        已是最新版本
+                      </Text>
+                    )}
+
+                    {updateInfo.notes ? (
+                      <YStack
+                        backgroundColor={palette.cardAlt}
+                        borderRadius={12}
+                        padding={12}
+                        maxHeight={180}>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                          <Text color={palette.textSecondary} fontSize={12.5} lineHeight={19}>
+                            {updateInfo.notes}
+                          </Text>
+                        </ScrollView>
+                      </YStack>
+                    ) : null}
+
+                    {pickAssetUrl(updateInfo) ? (
+                      <YStack gap={10}>
+                        <XStack
+                          height={46}
+                          borderRadius={14}
+                          alignItems="center"
+                          justifyContent="center"
+                          backgroundColor={palette.accent}
+                          opacity={downloading ? 0.6 : 1}
+                          pressStyle={downloading ? undefined : { opacity: 0.78 }}
+                          onPress={() => {
+                            if (!downloading) void handleDownloadUpdate();
+                          }}>
+                          <Text color={palette.onAccent} fontSize={14.5} fontWeight="700">
+                            {downloading ? '正在升级…' : '在线升级'}
+                          </Text>
+                        </XStack>
+
+                        {downloading && progress ? (
+                          <YStack gap={6}>
+                            <XStack alignItems="center" justifyContent="space-between">
+                              <Text color={palette.textSecondary} fontSize={11.5}>
+                                {progress.fraction >= 0
+                                  ? `${Math.round(progress.fraction * 100)}%`
+                                  : '下载中…'}
+                              </Text>
+                              <Text color={palette.textTertiary} fontSize={11}>
+                                {formatBytes(progress.written)}
+                                {progress.total > 0 ? ` / ${formatBytes(progress.total)}` : ''}
+                              </Text>
+                            </XStack>
+                            <View
+                              height={6}
+                              borderRadius={3}
+                              backgroundColor={palette.cardAlt}
+                              overflow="hidden">
+                              <View
+                                height={6}
+                                borderRadius={3}
+                                backgroundColor={palette.accent}
+                                width={progress.fraction >= 0 ? `${Math.round(progress.fraction * 100)}%` : '12%'}
+                              />
+                            </View>
+                          </YStack>
+                        ) : null}
+
+                        {downloadHint ? (
+                          <Text color={palette.textTertiary} fontSize={11} textAlign="center">
+                            {downloadHint}
+                          </Text>
+                        ) : null}
+                        {Platform.OS === 'ios' ? (
+                          <Text color={palette.textTertiary} fontSize={11} textAlign="center" lineHeight={16}>
+                            下载完成后用系统面板保存到「文件」，再用 SideStore / LiveContainer 重新签名安装
+                          </Text>
+                        ) : null}
+                      </YStack>
+                    ) : (
+                      <Text color={palette.textTertiary} fontSize={12} textAlign="center">
+                        该版本暂未提供当前平台的安装包
+                      </Text>
+                    )}
+                  </>
+                ) : (
+                  <Text color={palette.textTertiary} fontSize={13} textAlign="center">
+                    正在获取版本信息…
+                  </Text>
+                )}
+
+                <XStack
+                  height={42}
+                  borderRadius={12}
+                  alignItems="center"
+                  justifyContent="center"
+                  backgroundColor={palette.cardAlt}
+                  pressStyle={{ opacity: 0.7 }}
+                  onPress={() => {
+                    if (!downloading) setUpdateVisible(false);
+                  }}>
+                  <Text color={palette.textSecondary} fontSize={14} fontWeight="600">
+                    关闭
+                  </Text>
+                </XStack>
               </ScrollView>
             </YStack>
           </Pressable>
