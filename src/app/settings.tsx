@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { SFIcon } from '@/components/ui/sf-icon';
 import Constants from 'expo-constants';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,12 +28,14 @@ import { showToast } from '@/components/ui/toast';
 import { clearApiSession } from '@/lib/kugou-api';
 import {
   compareVersion,
-  downloadInstaller,
   fetchLatestRelease,
+  getDownloadSnapshot,
+  installOrSave,
   pickAssetUrl,
-  saveInstaller,
-  type DownloadedFile,
-  type DownloadProgress,
+  resetDownload,
+  startDownload,
+  subscribeDownload,
+  type DownloadSnapshot,
   type LatestRelease,
 } from '@/lib/updater';
 
@@ -205,15 +207,15 @@ export default function SettingsScreen() {
     showLyricTranslation,
     altSourceFallback,
   } = useSettings();
+  const params = useLocalSearchParams<{ openUpdate?: string }>();
   const [loggedIn, setLoggedIn] = useState(() => isLoggedIn());
   const [aboutVisible, setAboutVisible] = useState(false);
   const [updateVisible, setUpdateVisible] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<LatestRelease | null>(null);
   const [hasUpdate, setHasUpdate] = useState(false);
-  const [downloading, setDownloading] = useState(false);
-  const [downloadHint, setDownloadHint] = useState('');
-  const [progress, setProgress] = useState<DownloadProgress | null>(null);
+  const [installing, setInstalling] = useState(false);
+  const [snap, setSnap] = useState<DownloadSnapshot>(() => getDownloadSnapshot());
   const autoChecked = useRef(false);
   const version = Constants.expoConfig?.version ?? '';
 
@@ -221,9 +223,9 @@ export default function SettingsScreen() {
     router.push({ pathname: '/web', params: { url, title } });
   }
 
-  /** silent=true 时只更新「有新版本」提醒，不弹窗、失败不打扰用户。 */
-  async function checkUpdate(silent = false) {
-    if (checkingUpdate) return;
+  /** 只做检查：拉版本信息，判断是否有更新。是否弹窗由调用方决定。 */
+  async function checkUpdate(): Promise<LatestRelease | null> {
+    if (checkingUpdate) return null;
     setCheckingUpdate(true);
     try {
       const info = await fetchLatestRelease();
@@ -231,55 +233,74 @@ export default function SettingsScreen() {
       setUpdateInfo(info);
       const newer = !!version && compareVersion(info.version, version) > 0;
       setHasUpdate(newer);
-      if (!silent) setUpdateVisible(true);
+      return info;
     } catch (cause) {
-      if (!silent) {
-        showToast(cause instanceof Error ? cause.message : '检查更新失败，请稍后再试');
-      }
+      showToast(cause instanceof Error ? cause.message : '检查更新失败，请稍后再试');
+      return null;
     } finally {
       setCheckingUpdate(false);
     }
   }
 
-  // 进入设置页静默检查一次，有新版本就在「在线升级」行显示提醒。
+  // 从启动弹窗「立即升级」跳进来时，自动打开升级弹窗并执行检查步骤
   useEffect(() => {
-    if (autoChecked.current) return;
-    autoChecked.current = true;
-    void checkUpdate(true);
+    if (params.openUpdate === '1' && !autoChecked.current) {
+      autoChecked.current = true;
+      setUpdateVisible(true);
+      void checkUpdate();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.openUpdate]);
+
+  // 订阅模块级下载任务：切后台 / 页面重挂载都能接着看进度，不会重新下载
+  useEffect(() => {
+    const off = subscribeDownload(() => setSnap(getDownloadSnapshot()));
+    setSnap(getDownloadSnapshot());
+    return off;
   }, []);
 
+  /** 第 1 步：点「检查更新」，只检查不下载。 */
+  function handleCheckClick() {
+    void checkUpdate();
+  }
+
+  /** 第 2 步：点「下载更新」，交给模块级任务；完成后自动调安装 / 保存。 */
   async function handleDownloadUpdate() {
-    if (!updateInfo || downloading) return;
+    if (!updateInfo || snap.status === 'downloading') return;
     const url = pickAssetUrl(updateInfo);
     if (!url) {
       showToast('当前平台暂无可下载的安装包');
       return;
     }
-    setDownloading(true);
-    setProgress(null);
-    let file: DownloadedFile | null = null;
-    try {
-      const ext = Platform.OS === 'ios' ? 'ipa' : 'apk';
-      const fileName = `DL-Music-${updateInfo.version}.${ext}`;
-      showToast('正在下载安装包…');
-      file = await downloadInstaller(url, fileName, {
-        onNode: (label, index, total) => setDownloadHint(`节点 ${index}/${total} · ${label}`),
-        onProgress: (p) => setProgress(p),
-      });
-      setDownloadHint('下载完成，选择保存位置');
-      await saveInstaller(file, `保存 ${fileName}`);
-      showToast('安装包已保存到本地');
-    } catch (cause) {
-      showToast(cause instanceof Error ? cause.message : '下载失败，请稍后再试');
-    } finally {
-      if (file) {
-        try { await file.delete(); } catch { /* 清理失败可忽略 */ }
+    startDownload(updateInfo.version, url);
+  }
+
+  // 下载完成 → 自动安装（安卓）/ 打开文件保存面板（iOS）
+  const handledDone = useRef<string | null>(null);
+  useEffect(() => {
+    if (snap.status !== 'done' || !snap.version || handledDone.current === snap.version) return;
+    handledDone.current = snap.version;
+    void (async () => {
+      setInstalling(true);
+      try {
+        const opened = await installOrSave(snap.version!);
+        showToast(opened ? '正在打开安装器' : '安装包已保存到本地');
+      } catch (cause) {
+        showToast(cause instanceof Error ? cause.message : '安装失败，请在文件管理器中手动打开');
+      } finally {
+        setInstalling(false);
       }
-      setDownloadHint('');
-      setProgress(null);
-      setDownloading(false);
-    }
+    })();
+  }, [snap.status, snap.version]);
+
+  function openUpdateModal() {
+    handledDone.current = null;
+    setUpdateVisible(true);
+  }
+
+  function closeUpdateModal() {
+    if (snap.status === 'downloading') return;
+    setUpdateVisible(false);
   }
 
   function confirmLogout() {
@@ -510,14 +531,8 @@ export default function SettingsScreen() {
               />
               <SettingsRow
                 label="在线升级"
-                value={
-                  checkingUpdate
-                    ? '检查中…'
-                    : hasUpdate && updateInfo
-                      ? `有新版本 ${updateInfo.version}`
-                      : undefined
-                }
-                onPress={() => void checkUpdate()}
+                value={hasUpdate && updateInfo ? `有新版本 ${updateInfo.version}` : undefined}
+                onPress={openUpdateModal}
               />
               <View
                 height={StyleSheet.hairlineWidth}
@@ -613,14 +628,8 @@ export default function SettingsScreen() {
         visible={updateVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => {
-          if (!downloading) setUpdateVisible(false);
-        }}>
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => {
-            if (!downloading) setUpdateVisible(false);
-          }}>
+        onRequestClose={closeUpdateModal}>
+        <Pressable style={styles.modalOverlay} onPress={closeUpdateModal}>
           <Pressable style={styles.modalContainer} onPress={(event) => event.stopPropagation()}>
             <YStack
               maxHeight="82%"
@@ -639,14 +648,31 @@ export default function SettingsScreen() {
                   <Text color={palette.textSecondary} fontSize={13}>
                     当前版本 v{version}
                   </Text>
-                  {updateInfo ? (
-                    <Text color={palette.accent} fontSize={15} fontWeight="700">
-                      最新版本 {updateInfo.version}
-                    </Text>
-                  ) : null}
                 </YStack>
 
-                {updateInfo ? (
+                {/* 步骤 1：尚未检查 —— 先展示「检查更新」按钮 */}
+                {!updateInfo ? (
+                  <>
+                    <Text color={palette.textTertiary} fontSize={12.5} textAlign="center">
+                      点击下方按钮检查是否有新版本
+                    </Text>
+                    <XStack
+                      height={46}
+                      borderRadius={14}
+                      alignItems="center"
+                      justifyContent="center"
+                      backgroundColor={palette.accent}
+                      opacity={checkingUpdate ? 0.6 : 1}
+                      pressStyle={checkingUpdate ? undefined : { opacity: 0.78 }}
+                      onPress={() => {
+                        if (!checkingUpdate) handleCheckClick();
+                      }}>
+                      <Text color={palette.onAccent} fontSize={14.5} fontWeight="700">
+                        {checkingUpdate ? '检查中…' : '检查更新'}
+                      </Text>
+                    </XStack>
+                  </>
+                ) : (
                   <>
                     {version && compareVersion(updateInfo.version, version) > 0 ? (
                       <XStack
@@ -656,12 +682,12 @@ export default function SettingsScreen() {
                         paddingHorizontal={12}
                         alignSelf="center">
                         <Text color={palette.onAccent} fontSize={12} fontWeight="700">
-                          发现新版本
+                          发现新版本 {updateInfo.version}
                         </Text>
                       </XStack>
                     ) : (
                       <Text color={palette.textTertiary} fontSize={13} textAlign="center">
-                        已是最新版本
+                        已是最新版本 v{updateInfo.version}
                       </Text>
                     )}
 
@@ -670,7 +696,7 @@ export default function SettingsScreen() {
                         backgroundColor={palette.cardAlt}
                         borderRadius={12}
                         padding={12}
-                        maxHeight={180}>
+                        maxHeight={160}>
                         <ScrollView showsVerticalScrollIndicator={false}>
                           <Text color={palette.textSecondary} fontSize={12.5} lineHeight={19}>
                             {updateInfo.notes}
@@ -679,7 +705,10 @@ export default function SettingsScreen() {
                       </YStack>
                     ) : null}
 
-                    {pickAssetUrl(updateInfo) ? (
+                    {/* 步骤 2：有新版本且当前平台有包 —— 下载更新 */}
+                    {pickAssetUrl(updateInfo) &&
+                    version &&
+                    compareVersion(updateInfo.version, version) > 0 ? (
                       <YStack gap={10}>
                         <XStack
                           height={46}
@@ -687,27 +716,41 @@ export default function SettingsScreen() {
                           alignItems="center"
                           justifyContent="center"
                           backgroundColor={palette.accent}
-                          opacity={downloading ? 0.6 : 1}
-                          pressStyle={downloading ? undefined : { opacity: 0.78 }}
+                          opacity={snap.status === 'downloading' || installing ? 0.6 : 1}
+                          pressStyle={
+                            snap.status === 'downloading' || installing
+                              ? undefined
+                              : { opacity: 0.78 }
+                          }
                           onPress={() => {
-                            if (!downloading) void handleDownloadUpdate();
+                            if (snap.status !== 'downloading' && !installing) {
+                              void handleDownloadUpdate();
+                            }
                           }}>
                           <Text color={palette.onAccent} fontSize={14.5} fontWeight="700">
-                            {downloading ? '正在升级…' : '在线升级'}
+                            {installing
+                              ? '正在打开…'
+                              : snap.status === 'downloading'
+                                ? '下载中…'
+                                : snap.status === 'done'
+                                  ? '重新安装'
+                                  : '下载更新'}
                           </Text>
                         </XStack>
 
-                        {downloading && progress ? (
+                        {snap.status === 'downloading' && snap.progress ? (
                           <YStack gap={6}>
                             <XStack alignItems="center" justifyContent="space-between">
                               <Text color={palette.textSecondary} fontSize={11.5}>
-                                {progress.fraction >= 0
-                                  ? `${Math.round(progress.fraction * 100)}%`
+                                {snap.progress.fraction >= 0
+                                  ? `${Math.round(snap.progress.fraction * 100)}%`
                                   : '下载中…'}
                               </Text>
                               <Text color={palette.textTertiary} fontSize={11}>
-                                {formatBytes(progress.written)}
-                                {progress.total > 0 ? ` / ${formatBytes(progress.total)}` : ''}
+                                {formatBytes(snap.progress.written)}
+                                {snap.progress.total > 0
+                                  ? ` / ${formatBytes(snap.progress.total)}`
+                                  : ''}
                               </Text>
                             </XStack>
                             <View
@@ -719,33 +762,59 @@ export default function SettingsScreen() {
                                 height={6}
                                 borderRadius={3}
                                 backgroundColor={palette.accent}
-                                width={progress.fraction >= 0 ? `${Math.round(progress.fraction * 100)}%` : '12%'}
+                                width={
+                                  snap.progress.fraction >= 0
+                                    ? `${Math.round(snap.progress.fraction * 100)}%`
+                                    : '12%'
+                                }
                               />
                             </View>
+                            <Text color={palette.textTertiary} fontSize={10.5} textAlign="center">
+                              下载可在后台继续，返回此页可查看进度
+                            </Text>
                           </YStack>
                         ) : null}
 
-                        {downloadHint ? (
-                          <Text color={palette.textTertiary} fontSize={11} textAlign="center">
-                            {downloadHint}
+                        {snap.status === 'error' && snap.error ? (
+                          <Text color={palette.danger} fontSize={11} textAlign="center">
+                            {snap.error}
                           </Text>
                         ) : null}
+
                         {Platform.OS === 'ios' ? (
-                          <Text color={palette.textTertiary} fontSize={11} textAlign="center" lineHeight={16}>
+                          <Text
+                            color={palette.textTertiary}
+                            fontSize={11}
+                            textAlign="center"
+                            lineHeight={16}>
                             下载完成后用系统面板保存到「文件」，再用 SideStore / LiveContainer 重新签名安装
                           </Text>
                         ) : null}
                       </YStack>
                     ) : (
                       <Text color={palette.textTertiary} fontSize={12} textAlign="center">
-                        该版本暂未提供当前平台的安装包
+                        {compareVersion(updateInfo.version, version) > 0
+                          ? '该版本暂未提供当前平台的安装包'
+                          : '无需下载'}
                       </Text>
                     )}
+
+                    <XStack
+                      height={38}
+                      borderRadius={11}
+                      alignItems="center"
+                      justifyContent="center"
+                      pressStyle={{ opacity: 0.7 }}
+                      onPress={() => {
+                        setUpdateInfo(null);
+                        resetDownload();
+                        handledDone.current = null;
+                      }}>
+                      <Text color={palette.textTertiary} fontSize={12}>
+                        重新检查
+                      </Text>
+                    </XStack>
                   </>
-                ) : (
-                  <Text color={palette.textTertiary} fontSize={13} textAlign="center">
-                    正在获取版本信息…
-                  </Text>
                 )}
 
                 <XStack
@@ -755,9 +824,7 @@ export default function SettingsScreen() {
                   justifyContent="center"
                   backgroundColor={palette.cardAlt}
                   pressStyle={{ opacity: 0.7 }}
-                  onPress={() => {
-                    if (!downloading) setUpdateVisible(false);
-                  }}>
+                  onPress={closeUpdateModal}>
                   <Text color={palette.textSecondary} fontSize={14} fontWeight="600">
                     关闭
                   </Text>
