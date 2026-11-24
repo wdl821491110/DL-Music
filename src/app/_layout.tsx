@@ -10,6 +10,7 @@ import { TamaguiProvider } from 'tamagui';
 import { hydrateSettings, useSettingsHydrated } from '@/features/settings/store';
 import { ToastHost } from '@/components/ui/toast';
 import { useEffectiveScheme, usePalette } from '@/hooks/use-palette';
+import { requestNotificationPermission } from '@/lib/notifications';
 import { tamaguiConfig } from '../../tamagui.config';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -48,6 +49,11 @@ export default function RootLayout() {
       void SplashScreen.hideAsync().catch(() => undefined);
     }
   }, [hydrated, fontsLoaded]);
+
+  // Android 13+ 申请通知权限，锁屏 / 控制中心 / 灵动岛才能显示播放信息
+  useEffect(() => {
+    void requestNotificationPermission();
+  }, []);
 
   if (!hydrated || !fontsLoaded) {
     // 原生 splash 覆盖期间完成偏好读取与字体加载,首帧即正确主题与字体。
