@@ -77,21 +77,55 @@ export function compareVersion(a: string, b: string): number {
   return 0;
 }
 
-/** 从 GitHub Releases API 拉取最新发布信息。 */
+/** API 检查单次请求超时：弱网/蜂窝下 api.github.com 常挂死，必须兜底，否则按钮永久停在"检查中"。 */
+const API_TIMEOUT_MS = 12_000;
+
+/** 更新检查可用的 GitHub API 代理（实测 gh-proxy.com 可用），全失败再回退直链。 */
+const API_PROXY_NODES = [
+  'https://gh-proxy.com/',
+  'https://ghfast.top/',
+];
+
+async function fetchReleaseFrom(url: string): Promise<LatestRelease> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: 'application/vnd.github+json' },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`检查更新失败（${response.status}）`);
+    const data: any = await response.json();
+    if (!data || typeof data !== 'object') throw new Error('检查更新失败（返回异常）');
+    const assets = Array.isArray(data.assets) ? data.assets : [];
+    return {
+      version: String(data.tag_name ?? ''),
+      notes: String(data.body ?? ''),
+      ipaUrl: assets.find((a: any) => /\.ipa$/i.test(a.name))?.browser_download_url,
+      apkUrl: assets.find((a: any) => /\.apk$/i.test(a.name))?.browser_download_url,
+      publishedAt: String(data.published_at ?? ''),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** 从 GitHub Releases API 拉取最新发布信息：代理优先、直链兜底，逐个带超时。 */
 export async function fetchLatestRelease(): Promise<LatestRelease> {
-  const response = await fetch(API_LATEST, {
-    headers: { Accept: 'application/vnd.github+json' },
-  });
-  if (!response.ok) throw new Error(`检查更新失败（${response.status}）`);
-  const data: any = await response.json();
-  const assets = Array.isArray(data.assets) ? data.assets : [];
-  return {
-    version: String(data.tag_name ?? ''),
-    notes: String(data.body ?? ''),
-    ipaUrl: assets.find((a: any) => /\.ipa$/i.test(a.name))?.browser_download_url,
-    apkUrl: assets.find((a: any) => /\.apk$/i.test(a.name))?.browser_download_url,
-    publishedAt: String(data.published_at ?? ''),
-  };
+  const rawPath = `repos/${REPO}/releases/latest`;
+  const urls = [
+    ...API_PROXY_NODES.map((node) => `${node}https://api.github.com/${rawPath}`),
+    API_LATEST,
+  ];
+  let lastError: unknown;
+  for (const url of urls) {
+    try {
+      return await fetchReleaseFrom(url);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('检查更新失败，请稍后重试');
 }
 
 export function pickAssetUrl(info: LatestRelease): string | undefined {
