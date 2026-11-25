@@ -539,11 +539,6 @@ export default function SettingsScreen() {
                 backgroundColor={palette.border}
                 marginHorizontal={14}
               />
-              <SettingsRow
-                label="媒体诊断"
-                icon="analytics-outline"
-                onPress={() => router.push('/media-diagnose')}
-              />
               <View
                 height={StyleSheet.hairlineWidth}
                 backgroundColor={palette.border}
