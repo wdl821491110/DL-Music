@@ -113,8 +113,8 @@ let queueGeneration = 0;
 // 切歌命令由 patches/expo-audio/ios/MediaController.swift 注入原生侧；
 // 快进快退 10 秒不需要，关掉以免和切歌按钮混在一起。
 const LOCK_SCREEN_OPTIONS: AudioLockScreenOptions = {
-  showSeekForward: true,
-  showSeekBackward: true,
+  showSeekForward: false,
+  showSeekBackward: false,
 };
 
 /** 原生侧音源加载/解码失败时给用户的统一文案（详情只进日志，不打扰用户）。 */
