@@ -1,7 +1,8 @@
 import { File, Paths, DownloadTask } from 'expo-file-system';
 import { getContentUriAsync } from 'expo-file-system/legacy';
+import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
-import { Linking, Platform } from 'react-native';
+import { Platform } from 'react-native';
 
 const REPO = 'wdl821491110/DL-Music';
 const API_LATEST = `https://api.github.com/repos/${REPO}/releases/latest`;
@@ -263,8 +264,23 @@ export async function installOrSave(version: string): Promise<boolean> {
 
   if (Platform.OS === 'android') {
     const contentUri = await getContentUriAsync(file.uri);
-    // ACTION_VIEW + apk mime 会拉起系统安装器
-    await Linking.openURL(contentUri);
+    // 必须用显式 ACTION_VIEW + APK mime + 授予 URI 读取权限，否则国产 ROM（vivo/OPPO/小米等）
+    // 的 Linking.openURL(contentUri) 会静默失败、拉不起系统安装器。
+    // FLAG_GRANT_READ_URI_PERMISSION(1) 让安装器能读这个 content://，
+    // FLAG_ACTIVITY_NEW_TASK(0x10000000) 允许从非 Activity 上下文拉起。
+    const FLAG_GRANT_READ_URI_PERMISSION = 1;
+    const FLAG_ACTIVITY_NEW_TASK = 0x10000000;
+    try {
+      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+        data: contentUri,
+        type: 'application/vnd.android.package-archive',
+        flags: FLAG_GRANT_READ_URI_PERMISSION | FLAG_ACTIVITY_NEW_TASK,
+      });
+    } catch {
+      // 部分 ROM 对显式 mime 的 VIEW 不响应，回退到裸 URI 打开，尽量拉起安装器
+      const { Linking } = await import('react-native');
+      await Linking.openURL(contentUri);
+    }
     return true;
   }
 
