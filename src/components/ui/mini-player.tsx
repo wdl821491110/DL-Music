@@ -58,7 +58,7 @@ export function MiniPlayer() {
   const isDark = useIsDark();
   const animationsEnabled = useAnimationsEnabled();
   const router = useRouter();
-  const { track, playing, loading, buffering } = usePlayer();
+  const { track, index, playing, loading, buffering } = usePlayer();
   const rotation = useSharedValue(0);
 
   useEffect(() => {
@@ -121,6 +121,22 @@ export function MiniPlayer() {
             {track.artist || '未知歌手'}
           </Text>
         </YStack>
+
+        {index > 0 && (
+          <XStack
+            width={34}
+            height={38}
+            alignItems="center"
+            justifyContent="center"
+            transition="quickest"
+            pressStyle={{ scale: 0.9, opacity: 0.6 }}
+            onPress={(event) => {
+              event.stopPropagation();
+              playerActions.previous();
+            }}>
+            <SFIcon symbol="backward.end.fill" fallback="play-skip-back" size={19} color={palette.textSecondary} />
+          </XStack>
+        )}
 
         <XStack
           width={38}
