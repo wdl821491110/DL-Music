@@ -95,9 +95,17 @@ function createStore<T extends object>(initial: T) {
 const playerStore = createStore(INITIAL_PLAYER_STATE);
 const progressStore = createStore(INITIAL_PROGRESS_STATE);
 
+const COOLDOWN_MESSAGE = '操作太频繁，请稍后再点播放';
+
 let audioPlayer: AudioPlayer | null = null;
 let loadSequence = 0;
-let failStreak = 0;
+/**
+ * 取链失败后的冷却截止时间。流量移动中酷狗网关会对高频请求做临时风控，
+ * 失败后立刻重试 / 自动跳下一首等于继续猛发请求，会把临时风控越喂越久。
+ * 冷却期内不再自动重试、不再自动跳，只保留用户主动切歌。
+ */
+let retryCooldownUntil = 0;
+const FAILURE_COOLDOWN_MS = 30_000;
 /** 本次 loading 开始的时间；超过阈值仍 loading 视为取链挂死，播放键允许强制重试。 */
 let loadingSince = 0;
 const STALE_LOADING_MS = 12_000;
@@ -105,7 +113,6 @@ const STALE_LOADING_MS = 12_000;
 let currentSourceUri: string | null = null;
 /** 当前音源码率（bps）；非会员各档位可能都返回试听码率，用于跳过无效换源。 */
 let currentBitrate: number | null = null;
-let advanceTimer: ReturnType<typeof setTimeout> | null = null;
 // 每次“建立新队列”都会自增；后台补齐歌单剩余曲目时靠它判断队列是否已被替换。
 let queueGeneration = 0;
 
@@ -218,39 +225,11 @@ function pickNextIndex(step: 1 | -1, auto: boolean): number {
   return (index + step + queue.length) % queue.length;
 }
 
-/**
- * 取链失败时先对同一首重试一次再判失败。网络抖动/接口限流往往只失败一瞬，
- * 立即跳下一首会造成“连跳好几首”；重试成功则按正常流程播放。
- * 每次等待前后都校验 loadSequence：期间用户切歌/手动重播则放弃本次重试，避免旧结果覆盖新歌。
- */
-async function resolveSongSourceWithRetry(
-  track: PlayerTrack,
-  sequence: number
-): Promise<ResolvedSongSource> {
-  try {
-    return await resolveSongSource(track);
-  } catch (firstError) {
-    if (sequence !== loadSequence) {
-      throw firstError;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    if (sequence !== loadSequence) {
-      throw firstError;
-    }
-    return resolveSongSource(track);
-  }
-}
-
 async function loadTrackAt(index: number, options?: { autoplay?: boolean }) {
   const { queue } = playerStore.getState();
   const track = queue[index];
   if (!track) {
     return;
-  }
-
-  if (advanceTimer) {
-    clearTimeout(advanceTimer);
-    advanceTimer = null;
   }
 
   const sequence = ++loadSequence;
@@ -268,8 +247,9 @@ async function loadTrackAt(index: number, options?: { autoplay?: boolean }) {
   loadLyricsFor(track, sequence);
 
   try {
-    // 取链偶发失败（网络抖动、接口限流）先对同一首重试一次，避免被误判成音源坏掉而连跳。
-    const source = await resolveSongSourceWithRetry(track, sequence);
+    // 单次取链：resolveSongSource 内部已逐级兜底（完整版/试听/降级/搜索/备用音源），
+    // 不再额外做 900ms 自动重试——失败后整条链重跑正是把临时风控越喂越狠的根源。
+    const source = await resolveSongSource(track);
     if (sequence !== loadSequence) {
       return;
     }
@@ -304,8 +284,6 @@ async function loadTrackAt(index: number, options?: { autoplay?: boolean }) {
     if (options?.autoplay !== false) {
       player.play();
     }
-
-    failStreak = 0;
     loadingSince = 0;
     playerStore.setState({ loading: false });
     if (source.durationMs > 0) {
@@ -317,8 +295,10 @@ async function loadTrackAt(index: number, options?: { autoplay?: boolean }) {
       return;
     }
 
-    failStreak += 1;
     loadingSince = 0;
+    // 失败后先进入冷却：这段时间内不再自动跳下一首、也不主动重试。
+    // 风控是有时效的，硬顶着连续取链只会延长它；停一下反而最快恢复。
+    retryCooldownUntil = Date.now() + FAILURE_COOLDOWN_MS;
     playerStore.setState({
       loading: false,
       playing: false,
@@ -326,16 +306,6 @@ async function loadTrackAt(index: number, options?: { autoplay?: boolean }) {
       lyricsStatus: 'empty',
       error: error instanceof Error ? error.message : '播放失败，请稍后重试',
     });
-
-    const { queue: currentQueue } = playerStore.getState();
-    // 已经对同一首重试过，仍失败才跳下一首；且收紧连跳上限，避免一次网络故障跳光大半个歌单。
-    const maxStreak = Math.min(currentQueue.length, 3);
-    if (currentQueue.length > 1 && failStreak < maxStreak) {
-      advanceTimer = setTimeout(() => {
-        advanceTimer = null;
-        void skip(1, true);
-      }, 1400);
-    }
   }
 }
 
@@ -404,8 +374,6 @@ export const playerActions = {
       0,
       playable.findIndex((track) => track.hash === targetHash)
     );
-
-    failStreak = 0;
     const generation = ++queueGeneration;
     playerStore.setState({ queue: playable });
     await loadTrackAt(index);
@@ -451,7 +419,6 @@ export const playerActions = {
     // 歌单的后台补齐继续追加到队尾，顺序仍与歌单一致。
     const nextQueue = [...queue];
     nextQueue.splice(index + 1, 0, track);
-    failStreak = 0;
     playerStore.setState({ queue: nextQueue });
     await loadTrackAt(index + 1);
   },
@@ -467,6 +434,15 @@ export const playerActions = {
     }
 
     if (loading && Date.now() - loadingSince < STALE_LOADING_MS) {
+      return;
+    }
+
+    // 失败冷却期内点播放：只更新提示、不重新取链，避免用户连续点把临时风控越喂越久。
+    // 冷却只有 30 秒且到点自动失效，不会像挂死 loading 那样把播放键永久拦死。
+    if (error && Date.now() < retryCooldownUntil) {
+      if (error !== COOLDOWN_MESSAGE) {
+        playerStore.setState({ error: COOLDOWN_MESSAGE });
+      }
       return;
     }
 
@@ -617,10 +593,7 @@ export const playerActions = {
   clearQueue() {
     loadSequence += 1;
     queueGeneration += 1;
-    if (advanceTimer) {
-      clearTimeout(advanceTimer);
-      advanceTimer = null;
-    }
+    retryCooldownUntil = 0;
 
     currentSourceUri = null;
     currentBitrate = null;
