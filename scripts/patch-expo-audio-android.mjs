@@ -1,21 +1,19 @@
 /**
- * DL Music - Android 媒体通知 / 锁屏 / 控制中心 兼容 patch
+ * DL Music - Android 媒体通知 / 锁屏 / 控制中心 切歌 patch
  *
- * expo-audio 57.0.5 (media3 1.9.0) 原生实现有三处导致 Android 13+（API 33+，
- * vivo/小米等国产 ROM）锁屏与控制中心「只有歌曲信息、没有控制按钮」：
+ * 依据 expo-audio 官方新版(SDK58, PR #46020)的实现，把「上一首/下一首」补进 SDK 57：
+ *   1) buildNotification : 所有 Android 版本都加显式控制按钮，且 actions 用上一首/播放/下一首
+ *   2) updateSessionCustomLayout : customLayout + mediaButtonPreferences 用 ICON_PREVIOUS / ICON_NEXT
+ *   3) callback.onConnect : 声明 SEEK_TO_NEXT/PREVIOUS 玩家命令 + NEXT/PREVIOUS session 命令
+ *   4) callback.onCustomCommand : 点击切歌 -> emit remoteNextTrack/remotePreviousTrack 给 JS 队列
+ *   5) onStartCommand + 常量 : 通知栏按钮点击转发切歌给 JS
  *
- *   1) 通知渠道 IMPORTANCE_LOW（静默级），国产 ROM 会降级处理；
- *   2) 显式 addAction 控制按钮只在 API<=32 添加，Android 13+ 完全依赖 PlaybackState；
- *   3) AudioMediaSessionCallback.onConnect 主动 remove 了 SKIP_TO_PREVIOUS/NEXT 命令，
- *      系统按 PlaybackState 算按钮时槽位为空，切歌事件也没接。
+ * media3 1.9.0 常量确认：
+ *   - 玩家命令：Player.COMMAND_SEEK_TO_NEXT / COMMAND_SEEK_TO_PREVIOUS（无 SKIP_TO_*）
+ *   - 图标：CommandButton.ICON_NEXT / ICON_PREVIOUS
+ *   - JS 事件：iOS patch 已 emit remoteNextTrack/remotePreviousTrack，store.ts 已监听
  *
- * 构建时在 expo prebuild 之后运行，直接改 node_modules 原生源码：
- *   - AudioControlsService.kt : 渠道 DEFAULT；所有版本加控制按钮；customLayout 加切歌；
- *                                onStartCommand + 常量 + callback 实例化注入 player
- *   - AudioMediaSessionCallback.kt : 恢复 SKIP 命令；onCustomCommand 转发切歌事件给 JS
- *   - MetadataInjectingPlayer.kt : 声明 SKIP 可用命令
- *
- * 幂等：每处用特征串检测，重复运行跳过已应用项。
+ * 幂等：每处特征串检测，重复运行跳过。
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -23,50 +21,82 @@ import path from 'node:path';
 const ROOT = path.resolve('node_modules/expo-audio/android/src/main/java/expo/modules/audio');
 const SERVICE = path.join(ROOT, 'service/AudioControlsService.kt');
 const CALLBACK = path.join(ROOT, 'service/AudioMediaSessionCallback.kt');
-const META_PLAYER = path.join(ROOT, 'service/MetadataInjectingPlayer.kt');
 
-for (const f of [SERVICE, CALLBACK, META_PLAYER]) {
+for (const f of [SERVICE, CALLBACK]) {
   if (!fs.existsSync(f)) throw new Error(`[patch] 找不到 ${f}`);
 }
 
 const applied = [];
 function edit(file, fn) {
-  let s = fs.readFileSync(file, 'utf8');
+  const s = fs.readFileSync(file, 'utf8');
   const out = fn(s);
   if (out !== s) fs.writeFileSync(file, out, 'utf8');
 }
 
 // ============ 1. AudioControlsService.kt ============
 edit(SERVICE, (s) => {
-  // 1a. 通知渠道 IMPORTANCE_LOW -> IMPORTANCE_DEFAULT（静音）
-  const chanRe =
-    /NotificationChannel\(\s*CHANNEL_ID,\s*CHANNEL_ID,\s*NotificationManager\.IMPORTANCE_LOW\s*\)/;
-  if (s.includes('[DL Music] channel')) {
-    applied.push('通知渠道(已)');
-  } else if (chanRe.test(s)) {
-    s = s.replace(
-      chanRe,
-      `NotificationChannel(\n            CHANNEL_ID,\n            CHANNEL_ID,\n            NotificationManager.IMPORTANCE_DEFAULT\n          ).apply {\n            setSound(null, null)\n            enableVibration(false)\n          } // [DL Music] channel`
-    );
-    applied.push('通知渠道');
-  } else throw new Error('[patch] 通知渠道目标未找到');
-
-  // 1b. 所有 Android 版本都添加显式控制按钮
+  // 1a. 所有 Android 版本都添加显式通知按钮（国产 ROM 锁屏/控制中心主要读 notification actions）
   const cond = 'if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {';
-  if (s.includes('[DL Music] 所有版本控制按钮')) {
-    applied.push('控制按钮(已)');
+  if (s.includes('[DL Music] 全版本控制按钮')) {
+    applied.push('全版本按钮(已)');
   } else if (s.includes(cond)) {
-    s = s.replace(cond, 'if (true) { // [DL Music] 所有版本控制按钮');
-    applied.push('控制按钮');
-  } else throw new Error('[patch] 控制按钮判断目标未找到');
+    s = s.replace(cond, 'if (true) { // [DL Music] 全版本控制按钮');
+    applied.push('全版本按钮');
+  } else throw new Error('[patch] 全版本按钮判断目标未找到');
 
-  // 1c. customLayout 增加上一首/下一首（media3 常量是 ICON_NEXT / ICON_PREVIOUS）
+  // 1b. notification actions：在 seekBackward 之前插入「上一首」，在 seekForward 之后插入「下一首」
+  //     把快进快退替换为切歌（用户已关闭 showSeek，两侧 slot 空着）
+  if (s.includes('[DL Music] notification 切歌')) {
+    applied.push('notification切歌(已)');
+  } else {
+    // 上一首：插在 seekBackward action 块之前
+    const backAnchor =
+      '      if (currentOptions?.showSeekBackward == true) {\n        builder.addAction(';
+    if (!s.includes(backAnchor)) throw new Error('[patch] notification 上一首锚点未找到');
+    s = s.replace(
+      backAnchor,
+      `      // [DL Music] notification 切歌：上一首（系统媒体卡片 SLOT_BACK）
+      builder.addAction(
+        NotificationCompat.Action(
+          androidx.media3.session.R.drawable.media3_icon_previous,
+          "Previous",
+          buildActionPendingIntent(ACTION_PREVIOUS)
+        )
+      )
+      compactViewIndices.add(currentIndex)
+      currentIndex++
+${backAnchor}`
+    );
+    // 下一首：插在 seekForward action 块之后（在 setShowActionsInCompactView 之前）
+    const endAnchor = '      style.setShowActionsInCompactView(*compactViewIndices.toIntArray())';
+    if (!s.includes(endAnchor)) throw new Error('[patch] notification 下一首锚点未找到');
+    s = s.replace(
+      endAnchor,
+      `      // [DL Music] notification 切歌：下一首（系统媒体卡片 SLOT_FORWARD）
+      builder.addAction(
+        NotificationCompat.Action(
+          androidx.media3.session.R.drawable.media3_icon_next,
+          "Next",
+          buildActionPendingIntent(ACTION_NEXT)
+        )
+      )
+      compactViewIndices.add(currentIndex)
+${endAnchor}`
+    );
+    applied.push('notification切歌');
+  }
+
+  // 1c. customLayout / mediaButtonPreferences：SLOT_BACK/SLOT_FORWARD 用切歌图标
   if (s.includes('[DL Music] customLayout 切歌')) {
     applied.push('customLayout切歌(已)');
   } else {
-    const anchor = '    // Add play/pause button (always present)\n    mediaButtons.add(';
-    if (!s.includes(anchor)) throw new Error('[patch] customLayout 锚点未找到');
-    const insert = `    // [DL Music] customLayout 切歌：让 Android 13+ 系统渲染上一首/下一首
+    // 替换快退按钮块 -> 上一首
+    const backBlock =
+      /    \/\/ Add seek backward button if enabled\n    if \(currentOptions\?\.showSeekBackward == true\) \{[\s\S]*?\n    \}\n\n/;
+    if (!backBlock.test(s)) throw new Error('[patch] customLayout 快退块未找到');
+    s = s.replace(
+      backBlock,
+      `    // [DL Music] customLayout 切歌：上一首
     mediaButtons.add(
       CommandButton.Builder(CommandButton.ICON_PREVIOUS)
         .setDisplayName("Previous")
@@ -75,6 +105,16 @@ edit(SERVICE, (s) => {
         .setSlots(CommandButton.SLOT_BACK)
         .build()
     )
+
+`
+    );
+    // 替换快进按钮块 -> 下一首
+    const fwdBlock =
+      /    \/\/ Add seek forward button if enabled\n    if \(currentOptions\?\.showSeekForward == true\) \{[\s\S]*?\n    \}\n/;
+    if (!fwdBlock.test(s)) throw new Error('[patch] customLayout 快进块未找到');
+    s = s.replace(
+      fwdBlock,
+      `    // [DL Music] customLayout 切歌：下一首
     mediaButtons.add(
       CommandButton.Builder(CommandButton.ICON_NEXT)
         .setDisplayName("Next")
@@ -83,13 +123,13 @@ edit(SERVICE, (s) => {
         .setSlots(CommandButton.SLOT_FORWARD)
         .build()
     )
-${anchor}`;
-    s = s.replace(anchor, insert);
+`
+    );
     applied.push('customLayout切歌');
   }
 
   // 1d. 新增 ACTION_NEXT / ACTION_PREVIOUS 常量
-  if (s.includes('const val ACTION_NEXT')) {
+  if (s.includes('const val ACTION_NEXT ')) {
     applied.push('切歌常量(已)');
   } else {
     const constAnchor = '    const val ACTION_SEEK_FORWARD = "expo.modules.audio.action.SEEK_FORWARD"';
@@ -103,7 +143,7 @@ ${constAnchor}`
     applied.push('切歌常量');
   }
 
-  // 1e. onStartCommand 处理切歌 action（通知栏点按钮时）
+  // 1e. onStartCommand 处理切歌 action -> emit 给 JS
   if (s.includes('[DL Music] onStartCommand 切歌')) {
     applied.push('通知栏切歌(已)');
   } else {
@@ -122,7 +162,7 @@ ${actionAnchor}`
     applied.push('通知栏切歌');
   }
 
-  // 1f. 两处 callback 实例化注入 currentPlayer provider
+  // 1f. callback 实例化注入 currentPlayer provider
   const cbNew = 'AudioMediaSessionCallback({ currentPlayer })';
   const cbCount = (s.match(/AudioMediaSessionCallback\(\)/g) || []).length;
   if (cbCount > 0) {
@@ -137,7 +177,7 @@ ${actionAnchor}`
 
 // ============ 2. AudioMediaSessionCallback.kt ============
 edit(CALLBACK, (s) => {
-  // 2a. 构造改为接收 player provider
+  // 2a. 构造接收 player provider
   if (s.includes('private val activePlayer')) {
     applied.push('callback构造(已)');
   } else {
@@ -150,35 +190,37 @@ edit(CALLBACK, (s) => {
     applied.push('callback构造');
   }
 
-  // 2b. 恢复 SKIP 命令（去掉 4 行 remove）
-  if (s.includes('[DL Music] 保留SKIP')) {
-    applied.push('SKIP命令(已)');
+  // 2b. onConnect：去掉 remove 切歌命令，显式 add 正确的 SEEK_TO 常量
+  if (s.includes('[DL Music] 保留切歌命令')) {
+    applied.push('玩家命令(已)');
   } else {
     for (const line of [
-      '            .remove(Player.COMMAND_SEEK_TO_NEXT)',
-      '            .remove(Player.COMMAND_SEEK_TO_PREVIOUS)',
-      '            .remove(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)',
       '            .remove(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)',
+      '            .remove(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)',
+      '            .remove(Player.COMMAND_SEEK_TO_PREVIOUS)',
+      '            .remove(Player.COMMAND_SEEK_TO_NEXT)',
     ]) {
-      if (!s.includes(line)) throw new Error(`[patch] SKIP remove 未找到: ${line}`);
-      s = s.replace(line, '            // [DL Music] 保留SKIP');
+      if (!s.includes(line)) throw new Error(`[patch] remove 未找到: ${line}`);
+      s = s.replace(line, '            // [DL Music] 保留切歌命令');
     }
-    // 显式 add，确保 DEFAULT 未包含时也能渲染上一首/下一首
+    // 显式声明切歌命令（media3 1.9.0 正确常量）
     const seekAnchor = '            .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)';
     if (s.includes(seekAnchor)) {
       s = s.replace(
         seekAnchor,
-        `            // [DL Music] 显式声明 SKIP 命令
-            .add(Player.COMMAND_SKIP_TO_NEXT)
-            .add(Player.COMMAND_SKIP_TO_PREVIOUS)
+        `            // [DL Music] 显式声明切歌命令
+            .add(Player.COMMAND_SEEK_TO_NEXT)
+            .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+            .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+            .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
 ${seekAnchor}`
       );
     }
-    applied.push('SKIP命令');
+    applied.push('玩家命令');
   }
 
   // 2c. sessionCommands 增加 NEXT/PREVIOUS
-  if (s.includes('ACTION_NEXT, Bundle.EMPTY')) {
+  if (s.includes('AudioControlsService.ACTION_NEXT, Bundle.EMPTY')) {
     applied.push('session命令(已)');
   } else {
     const anchor = '            .add(SessionCommand(AudioControlsService.ACTION_SEEK_FORWARD, Bundle.EMPTY))';
@@ -192,7 +234,7 @@ ${anchor}`
     applied.push('session命令');
   }
 
-  // 2d. onCustomCommand 处理切歌 -> emit
+  // 2d. onCustomCommand 处理切歌 -> emit 给 JS
   if (s.includes('[DL Music] onCustomCommand 切歌')) {
     applied.push('onCustomCommand(已)');
   } else {
@@ -214,26 +256,4 @@ ${anchor}`
   return s;
 });
 
-// ============ 3. MetadataInjectingPlayer.kt ============
-edit(META_PLAYER, (s) => {
-  if (s.includes('[DL Music] 声明SKIP命令')) {
-    applied.push('SKIP能力(已)');
-  } else {
-    const anchor = '  override fun getMediaMetadata(): MediaMetadata {';
-    if (!s.includes(anchor)) throw new Error('[patch] MetadataInjectingPlayer 锚点未找到');
-    const insert = `  // [DL Music] 声明SKIP命令：让 Android 13+ 按 PlaybackState 渲染上一首/下一首
-  override fun getAvailableCommands(): Player.Commands {
-    return super.getAvailableCommands().buildUpon()
-      .add(Player.COMMAND_SKIP_TO_NEXT)
-      .add(Player.COMMAND_SKIP_TO_PREVIOUS)
-      .build()
-  }
-
-${anchor}`;
-    s = s.replace(anchor, insert);
-    applied.push('SKIP能力');
-  }
-  return s;
-});
-
-console.log('[patch] expo-audio Android 媒体控制 patch 完成：' + applied.join('、'));
+console.log('[patch] expo-audio Android 切歌 patch 完成：' + applied.join('、'));
