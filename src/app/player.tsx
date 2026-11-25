@@ -45,10 +45,10 @@ import { formatClock, sizedImage } from '@/lib/format';
 import { shareTrack } from '@/lib/share';
 import * as Sharing from 'expo-sharing';
 
-const MODE_ICON: Record<PlayMode, 'repeat' | 'repeat-once' | 'shuffle-variant'> = {
+const MODE_ICON: Record<PlayMode, 'repeat' | 'shuffle' | 'repeat-outline'> = {
   sequence: 'repeat',
-  shuffle: 'shuffle-variant',
-  single: 'repeat-once',
+  shuffle: 'shuffle',
+  single: 'repeat-outline',
 };
 
 const QUALITY_BADGE: Record<QualityId, string> = {
@@ -590,10 +590,10 @@ export default function PlayerScreen() {
       paddingHorizontal={isTablet ? 0 : 28}
       gap={compact ? 14 : 20}
       alignSelf="center">
-      <XStack alignItems="center" justifyContent="center" gap={38}>
+      <XStack alignItems="center" justifyContent="center" gap={20}>
         <XStack
-          width={40}
-          height={40}
+          width={56}
+          height={56}
           alignItems="center"
           justifyContent="center"
           opacity={likeBusy ? 0.5 : 1}
@@ -603,38 +603,38 @@ export default function PlayerScreen() {
           <SFIcon
             symbol={liked ? 'heart.fill' : 'heart'}
             fallback={liked ? 'heart' : 'heart-outline'}
-            size={21}
+            size={32}
             color={liked ? palette.accent : palette.textTertiary}
           />
         </XStack>
         <XStack
-          width={40}
-          height={40}
+          width={56}
+          height={56}
           alignItems="center"
           justifyContent="center"
           transition="quickest"
           pressStyle={{ opacity: 0.55, scale: 0.88 }}
           onPress={() => setActionsOpen(true)}>
-          <SFIcon symbol="playlist.plus" fallback="playlist-plus" size={21} color={palette.textTertiary} />
+          <SFIcon symbol="text.badge.plus" fallback="add-circle-outline" size={32} color={palette.textTertiary} />
         </XStack>
         <XStack
-          width={40}
-          height={40}
+          width={56}
+          height={56}
           alignItems="center"
           justifyContent="center"
           transition="quickest"
           pressStyle={{ opacity: 0.55, scale: 0.88 }}
           onPress={() => setQualityOpen(true)}>
           <View
-            width={30}
-            height={22}
-            borderRadius={6}
+            width={40}
+            height={30}
+            borderRadius={7}
             borderWidth={1.5}
             borderColor={quality === 'flac' ? palette.accent : palette.textTertiary}
             alignItems="center"
             justifyContent="center">
             <Text
-              fontSize={9.5}
+              fontSize={12}
               fontWeight="800"
               letterSpacing={0.5}
               color={quality === 'flac' ? palette.accent : palette.textTertiary}>
@@ -643,8 +643,8 @@ export default function PlayerScreen() {
           </View>
         </XStack>
         <XStack
-          width={40}
-          height={40}
+          width={56}
+          height={56}
           alignItems="center"
           justifyContent="center"
           transition="quickest"
@@ -654,11 +654,11 @@ export default function PlayerScreen() {
               void shareTrack(track);
             }
           }}>
-          <SFIcon symbol="square.and.arrow.up" fallback="share-social-outline" size={20} color={palette.textTertiary} />
+          <SFIcon symbol="square.and.arrow.up" fallback="share-social-outline" size={32} color={palette.textTertiary} />
         </XStack>
         <XStack
-          width={40}
-          height={40}
+          width={56}
+          height={56}
           alignItems="center"
           justifyContent="center"
           opacity={downloadBusy ? 0.5 : 1}
@@ -668,7 +668,7 @@ export default function PlayerScreen() {
           {downloadBusy ? (
             <Spinner size="small" color={palette.textTertiary} />
           ) : (
-            <SFIcon symbol="square.and.arrow.down" fallback="download-outline" size={20} color={palette.textTertiary} />
+            <SFIcon symbol="square.and.arrow.down" fallback="download-outline" size={32} color={palette.textTertiary} />
           )}
         </XStack>
       </XStack>
@@ -743,7 +743,7 @@ export default function PlayerScreen() {
           transition="quickest"
           pressStyle={{ opacity: 0.55, scale: 0.9 }}
           onPress={() => setQueueOpen(true)}>
-          <SFIcon symbol="music.note.list" fallback="playlist-music" size={22} color={palette.textSecondary} />
+          <SFIcon symbol="music.note.list" fallback="list" size={22} color={palette.textSecondary} />
         </XStack>
       </XStack>
     </YStack>
