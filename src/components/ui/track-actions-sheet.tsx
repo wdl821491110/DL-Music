@@ -359,7 +359,7 @@ export function TrackActionsSheet({
                     onPress={() => handleToggleLike(track)}
                   />
                   <ActionRow
-                    icon={<SFIcon symbol="playlist.plus" fallback="playlist-plus" size={22} color={palette.text} />}
+                    icon={<SFIcon symbol="text.badge.plus" fallback="add-circle-outline" size={22} color={palette.text} />}
                     label="收藏到歌单"
                     onPress={() => {
                       if (!isLoggedIn()) {
