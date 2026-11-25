@@ -3,7 +3,7 @@ import { SFIcon } from '@/components/ui/sf-icon';
 import Constants from 'expo-constants';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Alert, Dimensions, Modal, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, View, XStack, YStack, Switch } from 'tamagui';
 
@@ -588,7 +588,7 @@ export default function SettingsScreen() {
         <Pressable style={styles.modalOverlay} onPress={() => setAboutVisible(false)}>
           <Pressable style={styles.modalContainer} onPress={(event) => event.stopPropagation()}>
             <YStack
-              maxHeight="82%"
+              maxHeight={MODAL_MAX_HEIGHT}
               backgroundColor={palette.card}
               borderRadius={22}
               borderWidth={StyleSheet.hairlineWidth}
@@ -637,7 +637,7 @@ export default function SettingsScreen() {
         <Pressable style={styles.modalOverlay} onPress={closeUpdateModal}>
           <Pressable style={styles.modalContainer} onPress={(event) => event.stopPropagation()}>
             <YStack
-              maxHeight="82%"
+              maxHeight={MODAL_MAX_HEIGHT}
               backgroundColor={palette.card}
               borderRadius={22}
               borderWidth={StyleSheet.hairlineWidth}
@@ -842,6 +842,13 @@ export default function SettingsScreen() {
     </View>
   );
 }
+
+/**
+ * 弹窗最大高度：不能用百分比「82%」——外层 modalContainer 没有确定高度，
+ * 百分比在 RN 里解析不出真实像素，会导致弹窗被内容撑开、超出屏幕、内容被裁。
+ * 改用屏幕高度算出的固定值，两个弹窗（关于 / 在线升级）共用。
+ */
+const MODAL_MAX_HEIGHT = Math.round(Dimensions.get('window').height * 0.82);
 
 const styles = StyleSheet.create({
   modalOverlay: {
