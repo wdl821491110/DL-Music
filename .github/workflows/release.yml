@@ -78,8 +78,9 @@ jobs:
           else
             VERSION="dev-${GITHUB_SHA::7}"
           fi
+          # 资产名固定短名，与 v1.2.2/v1.2.3 一致：DL-Music.apk / DL-Music.ipa
           cp android/app/build/outputs/apk/release/app-release.apk \
-            "dist/DL-Music-${VERSION}-android.apk"
+            "dist/DL-Music.apk"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -138,7 +139,8 @@ jobs:
             VERSION="dev-${GITHUB_SHA::7}"
           fi
           cp -R "build/DLMusic.xcarchive/Products/Applications/DLMusic.app" Payload/
-          zip -qry "dist/DL-Music-${VERSION}-ios-unsigned.ipa" Payload
+          # 资产名固定短名，与 v1.2.2/v1.2.3 一致：DL-Music.ipa
+          zip -qry "dist/DL-Music.ipa" Payload
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
