@@ -47,6 +47,8 @@ type SongUrlArgs = {
   quality?: string;
   /** true 只要试听片段（IsFreePart:1）；false/undefined 请求完整版（IsFreePart:0）。 */
   freePart?: boolean;
+  /** 取链页 ID；电脑版用单一 356753938，比默认的逗号串更容易命中权益。 */
+  ppageId?: string;
 };
 
 type SongUrlOutcome = {
@@ -58,6 +60,100 @@ type SongUrlOutcome = {
   isTrial: boolean;
 };
 
+/** 音质档由高到低；与桌面版 QUALITY_LEVELS 的播放档保持一致。 */
+const QUALITY_CHAIN = ['flac', '320', '128'] as const;
+/** 电脑版取链固定使用单一 ppage_id（不是默认的逗号串），实测权益命中率更高。 */
+const DESKTOP_PPAGE_ID = '356753938';
+
+type PrivilegeCandidate = { hash: string; quality: string };
+
+/** 是否只拿到试听片段：显式标记，或时长明显短于曲目（非会员各档返回同一试听片段）。 */
+function isTrialOutcome(outcome: SongUrlOutcome, track: PlayerTrack): boolean {
+  const duration = normalizeDurationMs(outcome.timeLength);
+  return (
+    outcome.isTrial ||
+    (!!duration && !!track.durationMs && duration < track.durationMs * 0.6)
+  );
+}
+
+/**
+ * 取链前先向服务端探测「本账号对这首歌实际可用的音质档及其专属 hash」——这是主路径，
+ * 不是可选补丁。上游电脑版（OnlineMusicQueue）正是先调 /privilege/lite 拿到各档 hash，
+ * 再用这些 hash 逐档取链，付费/会员歌才能播；原手机版跳过这步、直接拿歌单原始 hash 硬取，
+ * 服务端对不上权益 → 判为无版权/VIP。
+ *
+ * 综合判定策略：
+ * - 探测成功：用返回的专属 hash，按「偏好档 → 更低档」逐档生成候选；
+ * - 探测失败 / 风控 / 无结果：仍生成「原始 hash 逐档降级」候选（多档穷举，不是单点重试）；
+ *   两条路径都带单一 ppage_id，由调用方逐档试到拿到完整源为止。
+ * 这样无论探测成败，走的都是完整的多候选取链，不再是"退回现状"。
+ */
+async function getPrivilegeCandidates(track: PlayerTrack, preferred: QualityId): Promise<PrivilegeCandidate[]> {
+  const start = Math.max(0, QUALITY_CHAIN.indexOf(preferred as (typeof QUALITY_CHAIN)[number]));
+  const chain = QUALITY_CHAIN.slice(start);
+  const rawHash = (track.hash || '').toLowerCase();
+
+  // 默认候选：原始 hash 逐档降级（探测失败时用它，仍比单点 try 覆盖更全）
+  const fallback: PrivilegeCandidate[] = chain.map((q) => ({ hash: rawHash, quality: q }));
+
+  if (!track.hash) return fallback;
+  try {
+    // album_id 必须是字符串：privilege_lite.js 内部用 String(...).split(',') 解析，
+    // 传数字会 .split is not a function 抛错，导致探测永远失败（此前"等于没改"的根因）。
+    const response = await mobileApi.privilege_lite({
+      hash: track.hash,
+      album_id: String(track.albumId ?? 0),
+    });
+    const body = toRecord(response?.body);
+    // status 非 1 = 失败 / 风控 / 验证拦截：放弃本次探测结果，用默认逐档候选
+    if (Number(body.status ?? 0) !== 1) return fallback;
+
+    const items = toRecords(body.data);
+    // 权益信息在 item 本身 + relate_goods 里，各音质档带各自的 hash。
+    const hashByQuality = new Map<string, string>();
+    for (const item of items) {
+      for (const variant of [item, ...toRecords(item.relate_goods)]) {
+        const hash = pickText(variant.hash).toLowerCase();
+        const quality = pickText(variant.quality).toLowerCase();
+        // 与桌面版一致：level=0 表示无权益，跳过（否则会选到仍受限的 hash）
+        const level = Number(variant.level ?? 0);
+        if (
+          hash &&
+          level !== 0 &&
+          QUALITY_CHAIN.includes(quality as (typeof QUALITY_CHAIN)[number]) &&
+          !hashByQuality.has(quality)
+        ) {
+          hashByQuality.set(quality, hash);
+        }
+      }
+    }
+
+    // 探测到的专属 hash 优先，按偏好档往下逐档；再把「原始 hash 逐档」补在后面兜底。
+    // 去重：同一 quality 只保留先出现的（专属 hash 优先），确保 tries 聚焦于最可能成功的源。
+    const candidates: PrivilegeCandidate[] = [];
+    const seen = new Set<string>();
+    const push = (c: PrivilegeCandidate) => {
+      const key = `${c.quality}`;
+      if (!seen.has(key) && c.hash) {
+        seen.add(key);
+        candidates.push(c);
+      }
+    };
+    for (const q of chain) {
+      push({ hash: hashByQuality.get(q) ?? rawHash, quality: q });
+    }
+    // 探测给了额外档（如 flac 之外的档）也一并纳入，扩大覆盖
+    for (const q of QUALITY_CHAIN) {
+      const h = hashByQuality.get(q);
+      if (h && !seen.has(q)) push({ hash: h, quality: q });
+    }
+    return candidates.length ? candidates : fallback;
+  } catch {
+    // 探测失败：返回默认逐档候选，交由调用方逐档取链（不是退回单点 try）
+    return fallback;
+  }
+}
+
 async function requestSongUrl(args: SongUrlArgs): Promise<SongUrlOutcome> {
   try {
     const response = await mobileApi.song_url({
@@ -66,6 +162,8 @@ async function requestSongUrl(args: SongUrlArgs): Promise<SongUrlOutcome> {
       album_audio_id: args.album_audio_id,
       quality: args.quality,
       free_part: args.freePart ? 1 : 0,
+      // 对齐电脑版：单一 ppage_id，避免默认逗号串导致服务端权益判定偏差
+      ...(args.ppageId ? { ppage_id: args.ppageId } : {}),
     });
 
     const body = toRecord(response.body);
@@ -87,17 +185,6 @@ async function requestSongUrl(args: SongUrlArgs): Promise<SongUrlOutcome> {
     // 这里转成「没拿到链接」的空 outcome，让上层继续按既有顺序兜底。
     return { status: 0, urls: [], timeLength: undefined, bitrate: undefined, isTrial: false };
   }
-}
-
-/**
- * 会员账号应拿到完整音源：先按完整版（IsFreePart:0）请求；
- * 拿不到链接时再退回试听片段，避免把原本还能试听的歌变成完全不能播。
- * 判断只看 URL 是否拿到，status 交给上层按最后结果解释。
- */
-async function requestSongUrlPreferFull(args: SongUrlArgs): Promise<SongUrlOutcome> {
-  const full = await requestSongUrl({ ...args, freePart: false });
-  if (full.urls.length) return full;
-  return requestSongUrl({ ...args, freePart: true });
 }
 
 function normalizeTitle(value: string): string {
@@ -178,19 +265,57 @@ export async function resolveSongSource(
     album_id: track.albumId ?? 0,
     album_audio_id: track.albumAudioId ?? 0,
   };
-  let outcome = await requestSongUrlPreferFull({ ...trackArgs, quality });
-  let usedArgs = trackArgs;
 
-  if (!outcome.urls.length && quality !== '128') {
-    // 高清/无损大概率因会员限制取不到，先退回标准音质再试。
-    outcome = await requestSongUrlPreferFull(trackArgs);
+  // 主路径：先探测权益，再按「专属 hash + 单一 ppage_id」逐档穷举完整版。
+  // 这是电脑版能播付费歌、原手机版不能的核心差异，不再是"附加层 + 失败退回老路"。
+  let outcome: SongUrlOutcome | null = null;
+  let usedArgs: SongUrlArgs = trackArgs;
+
+  const candidates = await getPrivilegeCandidates(track, quality);
+  let trialCandidate: { outcome: SongUrlOutcome; args: SongUrlArgs } | null = null;
+  for (const candidate of candidates) {
+    const probed = await requestSongUrl({
+      ...trackArgs,
+      hash: candidate.hash,
+      quality: candidate.quality,
+      freePart: false,
+      ppageId: DESKTOP_PPAGE_ID,
+    });
+    if (!probed.urls.length) continue;
+    const candidateArgs = { ...trackArgs, hash: candidate.hash };
+    // 试听片段先记下、继续试下一档找完整版；都不行再回头用它（历史试听检测不破坏）
+    if (isTrialOutcome(probed, track)) {
+      if (!trialCandidate) trialCandidate = { outcome: probed, args: candidateArgs };
+      continue;
+    }
+    outcome = probed;
+    usedArgs = candidateArgs;
+    break;
+  }
+  if (!outcome && trialCandidate) {
+    outcome = trialCandidate.outcome;
+    usedArgs = trialCandidate.args;
   }
 
+  // 逐档都没拿到：再退回试听片段（IsFreePart:1），至少保证有部分可听。
+  if (!outcome) {
+    outcome = await requestSongUrl({ ...trackArgs, quality, freePart: true, ppageId: DESKTOP_PPAGE_ID });
+    if (outcome.urls.length) usedArgs = trackArgs;
+  }
+
+  // 仍一无所获：用「歌手 + 歌名」搜索换标准 hash 再走一轮完整版取链（保留原有换源能力）。
   if (!outcome.urls.length) {
     const replacement = await findSearchReplacement(track);
     if (replacement) {
-      outcome = await requestSongUrlPreferFull(replacement);
-      usedArgs = replacement;
+      const rep = await requestSongUrl({ ...replacement, quality, freePart: false, ppageId: DESKTOP_PPAGE_ID });
+      if (!rep.urls.length && quality !== '128') {
+        // 换源后再降标准音质试一次
+        outcome = await requestSongUrl({ ...replacement, quality: '128', freePart: false, ppageId: DESKTOP_PPAGE_ID });
+        if (outcome.urls.length) usedArgs = replacement;
+      } else {
+        outcome = rep;
+      }
+      if (outcome.urls.length) usedArgs = replacement;
     }
   }
 
@@ -199,11 +324,7 @@ export async function resolveSongSource(
   //  2) 只拿到试听片段——非会员时酷狗会返回 30~90 秒的试听 URL，"有 URL"不等于完整源，
   //     若当成成功直接播放，用户听到一半就断，兜底等于没加。
   const resolvedDuration = normalizeDurationMs(outcome.timeLength);
-  const isTrialOnly =
-    outcome.isTrial ||
-    (!!resolvedDuration &&
-      !!track.durationMs &&
-      resolvedDuration < track.durationMs * 0.6);
+  const isTrialOnly = isTrialOutcome(outcome, track);
   const needFallback = !outcome.urls.length || isTrialOnly;
 
   if (needFallback && getAltSourceFallback()) {
