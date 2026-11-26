@@ -43,6 +43,11 @@ jobs:
           npm --prefix api install
           npm run generate:mobile-api
 
+      # 身份硬切概念版：submodule 里的身份判断依赖运行时环境变量、加载顺序不可靠，
+      # 导致概念版会员取链失败。生成 mobile-api 入口后就地 patch 成纯 lite 身份。
+      - name: Patch Kugou API to lite identity
+        run: node scripts/patch-kugou-lite-identity.mjs
+
       # expo-audio 原生未注册锁屏「上一首/下一首」命令，npm ci 之后覆盖其 Swift 源码。
       - name: Apply lock screen track commands patch
         run: cp patches/expo-audio/ios/MediaController.swift node_modules/expo-audio/ios/MediaController.swift
