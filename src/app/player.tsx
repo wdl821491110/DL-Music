@@ -677,8 +677,8 @@ export default function PlayerScreen() {
 
       <XStack alignItems="center" justifyContent="space-between" paddingHorizontal={8}>
         <XStack
-          width={44}
-          height={44}
+          width={56}
+          height={56}
           alignItems="center"
           justifyContent="center"
           transition="quickest"
@@ -687,7 +687,7 @@ export default function PlayerScreen() {
           <SFIcon
           symbol={mode === 'shuffle' ? 'shuffle' : mode === 'single' ? 'repeat.1' : 'repeat'}
           fallback={MODE_ICON[mode]}
-          size={22}
+          size={32}
           color={palette.textSecondary}
         />
         </XStack>
@@ -736,14 +736,14 @@ export default function PlayerScreen() {
         </XStack>
 
         <XStack
-          width={44}
-          height={44}
+          width={56}
+          height={56}
           alignItems="center"
           justifyContent="center"
           transition="quickest"
           pressStyle={{ opacity: 0.55, scale: 0.9 }}
           onPress={() => setQueueOpen(true)}>
-          <SFIcon symbol="music.note.list" fallback="list" size={22} color={palette.textSecondary} />
+          <SFIcon symbol="music.note.list" fallback="list" size={32} color={palette.textSecondary} />
         </XStack>
       </XStack>
     </YStack>
