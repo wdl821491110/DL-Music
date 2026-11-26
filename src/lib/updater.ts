@@ -51,8 +51,15 @@ type ActiveDownload = {
   status: DownloadStatus;
   progress: DownloadProgress | null;
   error: string | null;
-  listeners: Set<() => void>;
 };
+
+/**
+ * 订阅者放在模块级，不挂在 active 上。
+ * 之前挂在 active.listeners 上：首次打开升级页时 active 为 null，订阅直接落空，
+ * 随后新建的下载任务带的是空 listeners，进度/完成/错误都通知不到页面 —— 表现为
+ * 点了「下载更新」界面毫无反应。这里改成全局订阅，任何时候订阅都有效。
+ */
+const downloadListeners = new Set<() => void>();
 
 /**
  * 模块级单例：下载任务不绑在页面 state 上。
@@ -80,6 +87,9 @@ export function compareVersion(a: string, b: string): number {
 
 /** API 检查单次请求超时：弱网/蜂窝下 api.github.com 常挂死，必须兜底，否则按钮永久停在"检查中"。 */
 const API_TIMEOUT_MS = 12_000;
+
+/** 单节点下载停滞超时：这么久没有任何进度就判定卡死，取消后自动切下一个节点。 */
+const DOWNLOAD_STALL_MS = 20_000;
 
 /** 更新检查可用的 GitHub API 代理（实测 gh-proxy.com 可用），全失败再回退直链。 */
 const API_PROXY_NODES = [
@@ -137,15 +147,14 @@ function fileNameFor(version: string): string {
   return `DL-Music-${version}.${Platform.OS === 'ios' ? 'ipa' : 'apk'}`;
 }
 
-/** 订阅下载状态变化，返回取消订阅函数。 */
+/** 订阅下载状态变化（模块级，与 active 是否创建无关），返回取消订阅函数。 */
 export function subscribeDownload(listener: () => void): () => void {
-  if (!active) return () => undefined;
-  active.listeners.add(listener);
-  return () => { active?.listeners.delete(listener); };
+  downloadListeners.add(listener);
+  return () => { downloadListeners.delete(listener); };
 }
 
 function emitChange() {
-  active?.listeners.forEach((l) => l());
+  downloadListeners.forEach((l) => l());
 }
 
 export type DownloadSnapshot = {
@@ -194,20 +203,31 @@ export function startDownload(version: string, rawUrl: string): void {
     status: 'downloading',
     progress: null,
     error: null,
-    listeners: new Set(),
   };
   active = session;
+  // 立即通知，按钮立刻从「下载更新」变「下载中…」，杜绝「点了没反应」
+  emitChange();
 
   const run = async (): Promise<DownloadedFile> => {
     let lastError: unknown;
     for (const url of urls) {
       if (active !== session) throw new Error('下载已取消');
+      let watchdog: ReturnType<typeof setTimeout> | null = null;
+      let task: DownloadTask | null = null;
       try {
         if (dest.exists) await dest.delete();
-        const task = File.createDownloadTask(url, dest, {
+        // 停滞看门狗：20 秒无任何进度则取消当前任务、切下一个节点，避免永久卡死
+        const armWatchdog = () => {
+          if (watchdog) clearTimeout(watchdog);
+          watchdog = setTimeout(() => {
+            try { task?.cancel(); } catch { /* ignore */ }
+          }, DOWNLOAD_STALL_MS);
+        };
+        task = File.createDownloadTask(url, dest, {
           sessionType: 'background',
           onProgress: ({ bytesWritten, totalBytes }) => {
             if (active !== session) return;
+            armWatchdog();
             session.progress = {
               fraction: totalBytes > 0 ? bytesWritten / totalBytes : -1,
               written: bytesWritten,
@@ -217,13 +237,16 @@ export function startDownload(version: string, rawUrl: string): void {
           },
         });
         session.task = task;
+        armWatchdog();
         const file = await task.downloadAsync();
-        if (!file) throw new Error('下载被暂停');
+        if (watchdog) clearTimeout(watchdog);
+        if (!file) throw new Error('下载被暂停或连接超时');
         session.status = 'done';
         session.progress = { fraction: 1, written: 1, total: 1 };
         emitChange();
         return file;
       } catch (error) {
+        if (watchdog) clearTimeout(watchdog);
         lastError = error;
         try { if (dest.exists) await dest.delete(); } catch { /* ignore */ }
       }
